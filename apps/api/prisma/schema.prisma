@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CheckOutcome {
+  success
+  http_error
+  network_error
+  invalid_json
+  schema_changed
+}
+
+// Store safe categories, never raw exceptions, URLs, headers, or response bodies.
+enum CheckErrorCode {
+  timeout
+  dns_failure
+  connection_failure
+  tls_failure
+  http_status
+  invalid_json
+  unknown
+}
+
+enum SchemaChangeType {
+  added
+  removed
+  type_changed
+}
+
+model Endpoint {
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String        @db.VarChar(100)
+  url            String        @db.VarChar(2048)
+  baselineSchema Json?         @db.JsonB
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  checks         CheckResult[]
+}
+
+model CheckResult {
+  id             String         @id @default(uuid()) @db.Uuid
+  endpointId     String         @db.Uuid
+  endpoint       Endpoint       @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  httpStatus     Int?
+  responseTimeMs Int?
+  outcome        CheckOutcome
+  errorCode      CheckErrorCode?
+  checkedAt      DateTime       @default(now()) @db.Timestamptz(3)
+  schemaChanges  SchemaChange[]
+
+  @@index([endpointId, checkedAt])
+}
+
+model SchemaChange {
+  id            String           @id @default(uuid()) @db.Uuid
+  checkResultId String           @db.Uuid
+  checkResult   CheckResult      @relation(fields: [checkResultId], references: [id], onDelete: Cascade)
+  path          String
+  changeType    SchemaChangeType
+  previousTypes String[]
+  currentTypes  String[]
+
+  @@index([checkResultId])
+}
