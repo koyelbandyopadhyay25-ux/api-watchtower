@@ -3,6 +3,7 @@ import https from 'node:https';
 import { checkServerIdentity } from 'node:tls';
 import { performance } from 'node:perf_hooks';
 import type { JsonValue } from '../schema-comparison/schema-types.js';
+import { createPinnedHttpsAgent } from './pinned-https-agent.js';
 import { isPublicIpv4, validateTarget } from './url-policy.js';
 
 export const FETCH_LIMITS = { timeoutMs: 8_000, maxBytes: 128 * 1024, maxDepth: 50, maxNodes: 5_000, concurrency: 3 };
@@ -57,15 +58,16 @@ function assertJsonComplexity(value: JsonValue): void {
 }
 
 function readJson(url: URL, address: string, signal: AbortSignal, request: typeof https.request,
+  agent: https.Agent,
   onStatus: (status: number) => void): Promise<JsonValue> {
   return new Promise((resolve, reject) => {
     const req = request({
-      // Dial a validated literal IP: there is no second hostname resolution.
+      // The dedicated agent dials and verifies this validated literal IP directly.
       hostname: address, family: 4, port: 443, method: 'GET', path: url.pathname,
       servername: url.hostname, rejectUnauthorized: true,
       checkServerIdentity: (_name, certificate) => checkServerIdentity(url.hostname, certificate),
       headers: { Host: url.hostname, Accept: 'application/json', 'Accept-Encoding': 'identity' },
-      agent: false, signal, maxHeaderSize: 16 * 1024,
+      agent, signal, maxHeaderSize: 16 * 1024,
     }, response => {
       const status = response.statusCode ?? 0;
       onStatus(status);
@@ -105,6 +107,8 @@ function readJson(url: URL, address: string, signal: AbortSignal, request: typeo
 export function createSafeJsonFetcher(dependencies: {
   resolve?: typeof resolveIpv4;
   request?: typeof https.request;
+  connect?: typeof import('node:net').connect;
+  secureConnect?: typeof import('node:tls').connect;
   timeoutMs?: number;
 } = {}) {
   let active = 0;
@@ -118,14 +122,21 @@ export function createSafeJsonFetcher(dependencies: {
     externalSignal?.addEventListener('abort', cancel, { once: true });
     if (externalSignal?.aborted) controller.abort();
     const timeout = setTimeout(() => controller.abort(), dependencies.timeoutMs ?? FETCH_LIMITS.timeoutMs);
+    let agent: https.Agent | undefined;
     try {
       const url = validateTarget(target);
       controller.signal.throwIfAborted();
       const addresses = await (dependencies.resolve ?? resolveIpv4)(url.hostname, controller.signal);
       controller.signal.throwIfAborted();
-      if (!addresses.length || !addresses.every(isPublicIpv4)) throw new FetchFailure('network_error', 'unknown');
-      const address = [...addresses].sort()[0]!;
-      const value = await readJson(url, address, controller.signal, dependencies.request ?? https.request,
+      if (!addresses.length || addresses.length > 64 || !addresses.every(isPublicIpv4)) {
+        throw new FetchFailure('network_error', 'unknown');
+      }
+      const address = [...new Set(addresses)].sort()[0]!;
+      agent = createPinnedHttpsAgent(address, url.hostname, controller.signal, {
+        connect: dependencies.connect,
+        secureConnect: dependencies.secureConnect,
+      });
+      const value = await readJson(url, address, controller.signal, dependencies.request ?? https.request, agent,
         status => { httpStatus = status >= 100 && status <= 599 ? status : null; });
       return { ok: true, value, httpStatus, responseTimeMs: Math.round(performance.now() - start) };
     } catch (error) {
@@ -140,6 +151,7 @@ export function createSafeJsonFetcher(dependencies: {
       return { ok: false, httpStatus, responseTimeMs: Math.round(performance.now() - start),
         outcome: failure.outcome, errorCode: failure.errorCode };
     } finally {
+      agent?.destroy();
       clearTimeout(timeout);
       externalSignal?.removeEventListener('abort', cancel);
       active--;

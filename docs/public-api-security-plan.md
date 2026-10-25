@@ -224,3 +224,48 @@ Only use the IPv6-specific message if the backend actually has evidence of that 
 | Prisma schema/migrations | **No change expected** |
 
 Only this document is created in Phase 7A.1. Implementation approval is still required for every proposed code/catalog change. Deployment remains local-only; unrestricted destinations, isolated egress deployment, external email and any subsequent product phase are outside this review.
+
+## Phase 7A.2A implementation status (2026-10-26)
+
+This section records the fetcher hardening completed after the architecture review. **The URL allowlist has not changed:** only the two exact JSONPlaceholder `/todos/1` and `/posts/1` URLs remain accepted. This is not approval for arbitrary public destinations.
+
+### Completed protections
+
+- `url-policy.ts` retains HTTPS, port 443, no credentials, no query, no fragment and exact-URL checks. It rejects IPv6 and mapped IPv6 as dialable addresses. IPv4 classification now uses explicit subnets rather than broad second-octet checks. It blocks 0/8, RFC1918, loopback, CGNAT, link-local, multicast, limited broadcast, benchmarking, documentation, deprecated 6to4 relay, the Azure platform virtual IP, and reserved 240/4. Within 192.0.0.0/24 it permits only the IANA globally reachable 192.0.0.9/32 and .10/32 exceptions; the table is intentionally conservative elsewhere. See the [IANA IPv4 Special-Purpose Address Registry](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml) for the currently registered classifications. This list requires maintenance as allocations change.
+- DNS A results are capped at 64, every returned result is validated, and any unsafe/malformed/mixed result fails closed. The eligible set is deduplicated and the selected IPv4 is deterministic. DNS is rerun for each check; no cached validation authorizes future requests.
+- A new `pinned-https-agent.ts` creates a private, non-pooling HTTPS agent. It calls `net.connect` with the selected literal IPv4, family 4 and port 443; it does not use a hostname lookup or proxy. Before TLS starts, it checks the connected socket's `remoteAddress` and `remotePort` against that selection. It then wraps that socket with TLS using the original hostname for SNI and certificate identity verification, with `rejectUnauthorized: true`. The request is returned to Node's HTTP client only after TLS authorization. Failure, abort and timeout destroy the sockets. The agent has no keep-alive or cached TLS sessions and is destroyed after the response.
+- Redirects remain errors and are not followed. Requests stay GET-only, send fixed non-secret headers, request identity encoding, reject compressed responses, cap headers at 16 KiB and body at 128 KiB, and enforce the existing absolute 8-second budget across DNS, connection and body streaming. JSON UTF-8, depth and node limits remain in force. Errors returned to callers remain categorized without raw exception messages or response bodies.
+
+### Test evidence and limits
+
+The connector tests inject socket/TLS constructors. They assert the literal selected address passed to `net.connect`, the peer address and port that the connector observes, that a different peer is rejected before TLS, and that TLS uses the original hostname with certificate verification enabled. These are deterministic transport-boundary tests; they do not open attack connections to local/private services. Resolver tests cover mixed unsafe answers, empty/failing answers, ordering, and no second resolver call. Other tests cover redirect handling, certificate hostname mismatch behavior, unauthorized TLS, timeouts/abort, body limits, content type, invalid JSON, concurrency and proxy-independent direct connection options.
+
+Socket pinning and application address checks do **not** create an isolated network egress boundary. A VPN, transparent proxy, host route, compromised resolver/runtime, or an internal route to an otherwise globally assigned address can still affect reachability. This stage does not inspect CNAME records as a separate graph: `resolve4` returns A answers after DNS alias processing and every returned A address is checked, but the code does not log or validate each CNAME hop. It does not request AAAA; IPv6 is unsupported. It cannot infer subnet-specific directed broadcast addresses from an IPv4 address without the active route prefix. No live public TLS fixture was provisioned as part of this hardening; tests use controlled mocks. A future production deployment still needs an egress firewall/proxy boundary, constrained DNS/network routes, operational rate limits and security review.
+
+### Proposed Phase 7A.2B candidates — approval required
+
+These are proposals only and have **not** been added to the catalog or accepted by the backend. Both use the current provider hostname, so Phase 7A.2B would add reviewed exact paths without permitting user-selected hosts or wildcards.
+
+| Exact candidate URL | Provider and expected JSON | Auth/query | Redirect and reliability notes |
+| --- | --- | --- | --- |
+| `https://jsonplaceholder.typicode.com/users/1` | JSONPlaceholder by typicode; one user object, with fields such as `id`, `name`, `username`, `email`, address, phone, website and company. The provider lists users as a supported resource. | No API key/account documented; no query string required. | No redirect is required by the documented route; our checker would still reject any 3xx. The provider describes itself as a free fake API, not a contracted SLA. It publishes a high volume of requests but no numeric per-client limit or uptime guarantee; keep schedule opt-in and monitor provider policy. |
+| `https://jsonplaceholder.typicode.com/posts/1/comments` | JSONPlaceholder by typicode; an array of comment objects with `postId`, `id`, `name`, `email` and `body`, shown in its guide. | No API key/account documented; no query string required. | Same no-redirect enforcement and service reliability caveats. Arrays make this useful for exercising structural inference, but one response is only a sample and does not establish a universal schema. |
+
+JSONPlaceholder documents its mock service, supported resource types, sample JSON, and nested `/posts/1/comments` route in its [official guide](https://jsonplaceholder.typicode.com/?locale=en_us). Its home page describes the service as free fake data, with no signup or API key, and does not state an SLA or numeric rate limit. That absence should not be interpreted as unlimited capacity. If approved, requests remain HTTPS GET only on port 443, exact path only, no query/fragment, no redirects, fixed request headers, existing body/time/concurrency limits, per-check IPv4 validation and pinned TLS transport. Keep the 5-minute scheduler opt-in; avoid any promise of provider availability.
+
+### Database and compatibility status
+
+No Prisma schema, migration, ownership, endpoint, baseline, history, schedule, incident or notification record was changed for Phase 7A.2A. The fetcher is shared by manual and scheduled checks, so monitoring persistence, baseline handling, locks, ownership, CSRF, localhost management guards, incident deduplication and Mailpit-only notification behavior remain in their existing code paths. No database reset, migration or historical rewrite was performed.
+
+### Verification actually run
+
+- Fetcher and pinned-connector tests: **98 passed** in 2 files.
+- Full `npm test`: API **327 passed, 1 skipped** (18 files); web **56 passed** (5 files). Combined: **383 passed, 1 skipped**. The skipped API test requires Mailpit opt-in.
+- `npm run test:db`: **39 passed** across the existing database integration suites.
+- `npm run typecheck`, `npm run build`, `npm run db:validate`, and `git diff --check`: passed.
+- A live, read-only HTTPS check through the new connector to the existing allowlisted `https://jsonplaceholder.typicode.com/todos/1` returned HTTP 200 and bounded valid JSON. It used the normal system certificate chain and hostname verification.
+- `npm run test:e2e`: **4 skipped**. The browser tests are guarded behind explicit `WATCHTOWER_LIVE_E2E=true` (and notification tests also require Mailpit opt-in); the complete local API/UI/worker/dispatcher stack was not started for this fetcher-only phase.
+
+The integration tests used the isolated test database. No development database reset, migration, or historical rewrite was run. `git diff --check` reported only Git's LF-to-CRLF normalization notices for edited files, not whitespace errors. The pre-existing unusual untracked filename noted in the project status was left untouched.
+
+Phase 7A.2B requires explicit approval of the two exact candidate paths above before implementation. No other hostname, path, query, arbitrary destination, network proxy, deployment or product phase is approved by this document.

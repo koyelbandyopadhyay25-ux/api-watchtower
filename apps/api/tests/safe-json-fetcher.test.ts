@@ -60,8 +60,10 @@ describe('URL policy and SSRF restrictions', () => {
     'https://jsonplaceholder.typicode.com.evil.test/todos/1',
     'https://jsonplaceholder.typicode.com/other', 'https://example.com/',
     'https://localhost/', 'https://127.0.0.1/', 'https://2130706433/',
+    'https://0177.0.0.1/', 'https://0x7f000001/',
     'https://10.0.0.1/', 'https://169.254.169.254/',
-    'https://[::1]/', 'https://[fd00::1]/', 'https://[fe80::1]/', 'https://[::ffff:127.0.0.1]/',
+    'https://[::1]/', 'https://[fd00::1]/', 'https://[fe80::1]/',
+    'https://[fe80::1%25eth0]/', 'https://[::ffff:127.0.0.1]/', 'https://[::ffff:104.18.42.17]/',
   ])('rejects an untrusted target before DNS or HTTP (%s)', async url => {
     const { check, request, resolve } = fetcher();
     expect(validateTarget.bind(null, url)).toThrow();
@@ -71,7 +73,8 @@ describe('URL policy and SSRF restrictions', () => {
   });
 
   it.each(['0.1.2.3', '10.0.0.1', '127.0.0.1', '100.100.100.200', '169.254.169.254',
-    '172.16.0.1', '172.31.255.255', '192.0.0.9', '192.168.0.1', '192.88.99.1',
+    '172.16.0.1', '172.31.255.255', '192.0.0.1', '192.0.0.8', '192.0.0.170',
+    '192.0.2.1', '192.168.0.1', '192.88.99.1',
     '198.18.0.1', '198.19.255.255', '198.51.100.1', '203.0.113.1', '224.0.0.1',
     '255.255.255.255', '168.63.129.16', '::1', '::ffff:8.8.8.8', 'fd00::1', 'fe80::1'])('rejects non-public or IPv6 DNS addresses (%s)', async address => {
     const request = transport();
@@ -81,6 +84,17 @@ describe('URL policy and SSRF restrictions', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it.each(['8.8.8.8', '1.1.1.1', '192.0.0.9', '192.0.0.10', '192.0.3.1',
+    '192.31.196.1', '192.52.193.1', '192.175.48.1', '198.51.1.1', '203.0.1.1'])
+  ('keeps public IPv4 addresses outside the prohibited special-use prefixes eligible (%s)', address => {
+    expect(isPublicIpv4(address)).toBe(true);
+  });
+
+  it.each(['01.2.3.4', '127.1', '2130706433', '0x7f000001', '::ffff:127.0.0.1', 'fe80::1%eth0'])
+  ('rejects ambiguous and non-IPv4 address spellings (%s)', address => {
+    expect(isPublicIpv4(address)).toBe(false);
+  });
+
   it('pins one validated address without a second DNS resolution and retains TLS verification', async () => {
     const { check, resolve, request } = fetcher();
     resolve.mockResolvedValueOnce([publicIp]).mockResolvedValueOnce(['127.0.0.1']);
@@ -88,8 +102,13 @@ describe('URL policy and SSRF restrictions', () => {
     expect(resolve).toHaveBeenCalledTimes(1);
     const options = request.mock.calls[0]![0];
     expect(options).toMatchObject({ hostname: publicIp, port: 443, family: 4,
-      servername: 'jsonplaceholder.typicode.com', rejectUnauthorized: true, agent: false,
+      servername: 'jsonplaceholder.typicode.com', rejectUnauthorized: true,
       headers: { Host: 'jsonplaceholder.typicode.com', 'Accept-Encoding': 'identity' } });
+    expect(options.agent).toBeInstanceOf((await import('node:https')).Agent);
+    const agentOptions = (options.agent as import('node:https').Agent & {
+      options: { keepAlive?: boolean; maxCachedSessions?: number; proxyEnv?: unknown };
+    }).options;
+    expect(agentOptions).toMatchObject({ keepAlive: false, maxCachedSessions: 0, proxyEnv: {} });
     expect(options.checkServerIdentity).toBeTypeOf('function');
     const mismatchedCertificate = { subjectaltname: 'DNS:attacker.example' } as DetailedPeerCertificate;
     expect(options.checkServerIdentity!('ignored', mismatchedCertificate)).toMatchObject({ code: 'ERR_TLS_CERT_ALTNAME_INVALID' });
