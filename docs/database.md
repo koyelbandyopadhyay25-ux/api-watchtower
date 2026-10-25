@@ -2,7 +2,7 @@
 
 ## Current verification status
 
-Local PostgreSQL connectivity has been verified at `127.0.0.1:5432`. The development database `watchtower_dev` has completed migration `20261025094835_init`. Before preparing `watchtower_test`, read-only queries confirmed its identity and that it contained no user relations or routines. The guarded preparation command then applied the same migration successfully. All five PostgreSQL integration tests passed; the full suite passed 55 tests with none skipped. The optional Docker Compose configuration has not been exercised.
+Local PostgreSQL connectivity has been verified at `127.0.0.1:5432`. The development database `watchtower_dev` has completed migration `20261025094835_init`. Before preparing `watchtower_test`, read-only queries confirmed its identity and that it contained no user relations or routines. The guarded preparation command then applied the same migration successfully. Phase 3B extends the original five integration tests to seven, including the REST monitoring workflow and optimistic baseline acceptance. No further migration is needed. Do not prepare/reset either existing database. The optional Docker Compose configuration has not been exercised.
 
 ## Models and data boundaries
 
@@ -14,7 +14,7 @@ Endpoint deletion is restricted while checks exist, protecting history from acci
 
 The repository supports creating/retrieving endpoints, explicitly setting/clearing baselines, atomically recording checks with changes, and retrieving bounded history. It does not fetch URLs or schedule work. Connection pools are owned by callers; always disconnect in `finally`. Safe `DatabaseError` codes are `not_found`, `conflict`, `unavailable`, and `operation_failed`; raw driver exceptions are not propagated or logged. Absence from `getEndpoint`/`getCheckResult` returns null.
 
-No response-body or request-header column exists. Errors use a fixed enum rather than free-text messages. URLs with embedded credentials, query strings, or fragments are rejected. Avoid secrets or personal data in endpoint names, URL paths, or JSON property names: structural field paths are persisted. No authentication is available; no management HTTP endpoints are added, and the API binds only to IPv4 localhost.
+No response-body or request-header column exists. Errors use a fixed enum rather than free-text messages. URLs with embedded credentials, query strings, or fragments are rejected. Avoid secrets or personal data in endpoint names, URL paths, or JSON property names: structural field paths are persisted. No authentication is available; Phase 3B adds explicitly enabled local-development management routes, and the API binds only to IPv4 localhost. See [the monitoring API guide](monitoring-api.md).
 
 ## Baselines
 
@@ -37,7 +37,7 @@ The baseline format contains structure only:
 
 Allowed types match the Phase 2 engine. `properties` is valid only with an object type; `items` only with an array type. Omitting `items` represents unknown item structure, such as an empty sampled array. Extra metadata/value fields are rejected, and validation has a nesting limit of 100. Baseline serialization is not a replacement for the Phase 2 comparison algorithm and does not infer structures from bodies.
 
-`repository.setBaseline(endpointId, schema)` explicitly sets/replaces a baseline. Passing null explicitly clears it. Recording a check never changes the baseline, even when schema changes are saved. Phase 3B still needs to connect response inference, baseline approval, and comparison without silently replacing baselines.
+`repository.setBaseline(endpointId, schema)` explicitly sets/replaces a baseline internally. Passing null explicitly clears it. Recording a check never changes the baseline, even when schema changes are saved. Phase 3B connects inference and comparison through a separate monitoring service; REST acceptance uses `repository.acceptBaseline` with an optimistic `updatedAt` condition. There is no public/internal HTTP route for clearing baselines.
 
 ## Configure local environment
 
@@ -116,7 +116,7 @@ npm run build
 
 `db:prepare-test` verifies the database identity and emptiness, then applies the existing migration with `prisma migrate deploy`. Do not rerun preparation against a populated test database; rerun `test:db` directly. Test execution never creates/drops schemas or resets/truncates tables. It creates uniquely identified records, retrieves a committed endpoint through a second client, tests explicit baseline persistence, check/change storage, safe failures, referential integrity, and delete behavior. Cleanup deletes only the IDs created by that suite. These are synthetic integration-test records, not claimed monitoring activity.
 
-Without `TEST_DATABASE_URL`, the five integration tests explicitly skip. With an invalid, unconfirmed, or unreachable test URL, they fail rather than falling back to the application database. The fixed distinct database names prevent the guarded migration workflow from using the test database as the development database. Never run these commands against a production database.
+Without `TEST_DATABASE_URL`, the seven integration tests explicitly skip. With an invalid, unconfirmed, or unreachable test URL, they fail rather than falling back to the application database. The fixed distinct database names prevent the guarded migration workflow from using the test database as the development database. Never run these commands against a production database.
 
 ## Troubleshooting: disposable database rejected and tests skipped
 
@@ -130,4 +130,4 @@ Npm workspace scripts execute from `apps/api`, so `dotenv/config` loads `apps/ap
 
 ## Next phase
 
-Phase 3A does not include manual/public URL fetching, scheduling, authentication, alerts, or dashboard work. Local migration and integration verification are now complete. Phase 3B needs separately specified response-fetching behavior, network and timeout controls, failure classification, and baseline integration.
+Local migration and integration verification are complete. Phase 3B now provides [manual HTTPS checks and explicit baseline capture](monitoring-api.md) against an exact public test allowlist using the same database schema. Scheduling, authentication, alerts, frontend dashboard work, and public deployment remain out of scope.

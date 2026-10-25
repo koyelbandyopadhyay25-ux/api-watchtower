@@ -9,6 +9,13 @@ export type JsonValue =
 
 export type JsonType = 'array' | 'boolean' | 'null' | 'number' | 'object' | 'string';
 
+/** Serializable structural evidence, without primitive response values. */
+export interface InferredSchema {
+  types: JsonType[];
+  properties?: Record<string, InferredSchema>;
+  items?: InferredSchema;
+}
+
 export interface SchemaChange {
   path: string;
   changeType: 'added' | 'removed' | 'type_changed';

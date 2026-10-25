@@ -1,7 +1,7 @@
 import { Prisma, type CheckErrorCode, type CheckOutcome, type PrismaClient } from '../generated/prisma/client.js';
 import type { SchemaChange } from '../schema-comparison/schema-types.js';
 import { type BaselineSchema, isJsonType, serializeBaseline } from './baseline-schema.js';
-import { databaseOperation } from './database-errors.js';
+import { databaseOperation, DatabaseError } from './database-errors.js';
 
 export interface RecordCheckInput {
   endpointId: string;
@@ -10,6 +10,7 @@ export interface RecordCheckInput {
   outcome: CheckOutcome;
   errorCode?: CheckErrorCode;
   schemaChanges?: SchemaChange[];
+  checkedAt?: Date;
 }
 
 function validateEndpoint(name: string, address: string): string {
@@ -34,6 +35,24 @@ export function createMonitoringRepository(client: PrismaClient) {
 
     async getEndpoint(id: string) {
       return databaseOperation(() => client.endpoint.findUnique({ where: { id } }));
+    },
+
+    async listEndpoints(limit = 50) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid endpoint limit.');
+      return databaseOperation(() => client.endpoint.findMany({
+        take: limit, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }));
+    },
+
+    async acceptBaseline(endpointId: string, expectedUpdatedAt: Date, baseline: BaselineSchema) {
+      const baselineSchema = serializeBaseline(baseline);
+      return databaseOperation(() => client.$transaction(async transaction => {
+        const result = await transaction.endpoint.updateMany({
+          where: { id: endpointId, updatedAt: expectedUpdatedAt }, data: { baselineSchema },
+        });
+        if (result.count !== 1) throw new DatabaseError('conflict');
+        return transaction.endpoint.findUniqueOrThrow({ where: { id: endpointId } });
+      }));
     },
 
     /** An explicit operation is the only way to set, replace, or clear a baseline. */
@@ -68,6 +87,7 @@ export function createMonitoringRepository(client: PrismaClient) {
           responseTimeMs: input.responseTimeMs,
           outcome: input.outcome,
           errorCode: input.errorCode,
+          checkedAt: input.checkedAt,
           schemaChanges: {
             create: changes.map(change => ({
               path: change.path,
@@ -94,6 +114,7 @@ export function createMonitoringRepository(client: PrismaClient) {
       return databaseOperation(() => client.checkResult.findMany({
         where: { endpointId }, take: limit,
         orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
+        include: { schemaChanges: { orderBy: { path: 'asc' } } },
       }));
     },
   };

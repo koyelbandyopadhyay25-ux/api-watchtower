@@ -14,6 +14,7 @@ export async function databaseOperation<T>(operation: () => Promise<T>): Promise
   try {
     return await operation();
   } catch (error) {
+    if (error instanceof DatabaseError) throw error;
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2025') throw new DatabaseError('not_found');
       if (['P2002', 'P2003'].includes(error.code)) throw new DatabaseError('conflict');

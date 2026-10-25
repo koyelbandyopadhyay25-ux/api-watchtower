@@ -1,12 +1,8 @@
 import type { Prisma } from '../generated/prisma/client.js';
-import type { JsonType } from '../schema-comparison/schema-types.js';
+import type { InferredSchema, JsonType } from '../schema-comparison/schema-types.js';
 
 /** Structural metadata only. Primitive response values have no representation. */
-export interface BaselineSchema {
-  types: JsonType[];
-  properties?: Record<string, BaselineSchema>;
-  items?: BaselineSchema;
-}
+export type BaselineSchema = InferredSchema;
 
 const jsonTypes = new Set(['array', 'boolean', 'null', 'number', 'object', 'string']);
 

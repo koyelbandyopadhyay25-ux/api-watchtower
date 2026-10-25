@@ -1,4 +1,4 @@
-import type { JsonType, JsonValue, SchemaChange } from './schema-types.js';
+import type { InferredSchema, JsonType, JsonValue, SchemaChange } from './schema-types.js';
 
 interface ObservedSchema {
   types: Set<JsonType>;
@@ -96,4 +96,38 @@ export function compareJsonSchema(previous: JsonValue, current: JsonValue): Sche
   compareNodes(previousSchema, currentSchema, '$', changes);
   // Code-unit ordering avoids machine-dependent locale sorting.
   return changes.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+}
+
+function serializeObserved(schema: ObservedSchema): InferredSchema {
+  const result: InferredSchema = { types: sortedTypes(schema) };
+  if (schema.types.has('object')) {
+    result.properties = Object.fromEntries([...schema.properties.entries()]
+      .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+      .map(([key, child]) => [key, serializeObserved(child)]));
+  }
+  if (schema.items) result.items = serializeObserved(schema.items);
+  return result;
+}
+
+function restoreObserved(schema: InferredSchema): ObservedSchema {
+  return {
+    types: new Set(schema.types),
+    properties: new Map(Object.entries(schema.properties ?? {})
+      .map(([key, child]) => [key, restoreObserved(child)])),
+    items: schema.items ? restoreObserved(schema.items) : undefined,
+  };
+}
+
+/** Reuse the existing inference, retaining structure only for a saved baseline. */
+export function inferJsonSchema(value: JsonValue): InferredSchema {
+  const schema = emptySchema();
+  observe(schema, value);
+  return serializeObserved(schema);
+}
+
+/** Reuse the existing comparison traversal with already inferred schemas. */
+export function compareInferredSchemas(previous: InferredSchema, current: InferredSchema): SchemaChange[] {
+  const changes: SchemaChange[] = [];
+  compareNodes(restoreObserved(previous), restoreObserved(current), '$', changes);
+  return changes.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
