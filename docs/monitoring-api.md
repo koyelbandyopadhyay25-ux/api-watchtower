@@ -2,7 +2,7 @@
 
 ## Scope and architecture
 
-This phase adds manual, local backend monitoring. There is no scheduler, authentication, alert delivery, frontend dashboard, or deployment configuration. PostgreSQL schemas and migrations are unchanged; do not rerun database initialization.
+Phase 3B adds manual, local backend monitoring. Phase 4 adds a [developer dashboard](dashboard.md) using these same routes and guards. There is no scheduler, authentication, alert delivery, or deployment configuration. PostgreSQL schemas and migrations are unchanged; do not rerun database initialization.
 
 `url-policy.ts` validates the small destination allowlist and public IPv4 addresses. `safe-json-fetcher.ts` handles DNS, HTTPS, deadlines, and bounded JSON reading. `monitoring-service.ts` coordinates the fetch, schema comparison, and repository writes. `management-routes.ts` handles the local REST boundary. The Phase 2 traversal remains the source of inference/comparison behavior: small `inferJsonSchema` and `compareInferredSchemas` adapters serialize/restore its existing internal representation. No response body is retained as a baseline.
 
@@ -122,4 +122,4 @@ Unit tests mock the low-level HTTPS request/DNS boundaries and inspect the liter
 
 A separate real public-HTTPS demo verified three HTTP 200 checks persisted in `watchtower_dev`; the same baseline and history were retrieved after restarting the API. Live registration attempts for localhost, cloud metadata, and port 444 were rejected with 400. The live upstream sample remained structurally stable; changed-schema persistence is demonstrated by the controlled integration tests, not claimed as a real upstream incident.
 
-Phase 4 still needs a separately agreed scope. Candidates are endpoint/history UI, clearer baseline review, pagination/retention policy, and stronger operational controls. Authentication/authorization and a broader reviewed egress policy are prerequisites for exposure beyond localhost. There is no scheduling, public deployment, or alerting in this phase.
+Phase 4 now provides endpoint/history UI and explicit baseline review through the existing local API. Pagination/retention policy and stronger operational controls remain future work. Authentication/authorization and a broader reviewed egress policy are prerequisites for exposure beyond localhost. There is no scheduling, public deployment, or alerting in this phase.

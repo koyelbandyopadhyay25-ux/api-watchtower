@@ -1,6 +1,6 @@
 # API Watchtower
 
-A full-stack API monitoring platform under development. Phases 1–3B provide the project foundation, deterministic schema comparison, PostgreSQL persistence, and manual local HTTPS monitoring against a small public test allowlist. Local database and real HTTP workflows have been verified. Scheduling, authentication, alerts, and dashboard features are not implemented.
+A full-stack API monitoring platform under development. Phases 1–4 provide deterministic schema comparison, PostgreSQL persistence, manual local HTTPS monitoring, and a developer dashboard backed by actual endpoint/history data. Scheduling, authentication, alerts, and public deployment are not implemented.
 
 ## Structure
 
@@ -16,7 +16,9 @@ apps/
     src/monitoring/       Destination policy, bounded HTTPS fetcher, workflow, local REST routes
     tests/                Unit/API tests and isolated PostgreSQL integration tests
   web/
-    src/                  React setup page and Tailwind styles
+    src/                  React dashboard, API client, reusable components, and styles
+    tests/                Test-only fixtures and component/interaction tests
+    e2e/                  Explicitly enabled real local browser workflow
     vite.config.ts        React, Tailwind, and development API proxy
 ```
 
@@ -27,13 +29,15 @@ Prisma CLI, client, and `@prisma/adapter-pg` use matching 7.10.x versions. `apps
 ## Requirements and installation
 
 - Node.js 22.12+ (Node 24 LTS recommended) and npm 10+.
-- PostgreSQL for manual monitoring/persistence. The setup page and health route run without it.
+- PostgreSQL for endpoint data and manual monitoring. Process health and local setup instructions remain available without a database connection.
 
 From the repository root:
 
 ```powershell
 npm install
 if (-not (Test-Path apps/api/.env)) { Copy-Item .env.example apps/api/.env }
+$env:NODE_ENV = 'development'
+$env:ENABLE_LOCAL_MANAGEMENT = 'true'
 npm run dev
 ```
 
@@ -57,7 +61,9 @@ Local PostgreSQL at `127.0.0.1:5432` has been verified. Migration `2026102509483
 | `npm run dev:web` | Start Vite only |
 | `npm run dev:api` | Start Express with TypeScript watch mode |
 | `npm run typecheck` | Check both applications |
-| `npm test` | Run health, comparison, safety, and configured database tests |
+| `npm test` | Run all backend and frontend unit/component tests, plus configured DB tests |
+| `npm run test:web` | Run frontend component/client tests only |
+| `npm run test:e2e` | Opt-in live browser workflow; requires running local stack and WATCHTOWER_LIVE_E2E=true |
 | `npm run test:db` | Run only isolated database tests (skipped without TEST_DATABASE_URL) |
 | `npm run build` | Build both applications |
 | `npm run db:validate` | Validate the Prisma schema |
@@ -68,7 +74,7 @@ Local PostgreSQL at `127.0.0.1:5432` has been verified. Migration `2026102509483
 
 After building, `npm run start -w @watchtower/api` starts the compiled API. `npm run preview -w @watchtower/web` previews the frontend build only; the development proxy does not apply to preview. Production routing and deployment configuration are outside the current scope.
 
-Tests cover health, schema comparison, database safety, baseline handling, HTTPS restrictions, workflow, local REST boundaries, and PostgreSQL persistence. Seven PostgreSQL integration tests are skipped without `TEST_DATABASE_URL`; they never fall back to `DATABASE_URL`. Client generation runs before API development startup, tests, typechecking, and builds. Frontend validation consists of TypeScript checking and a production build; there is no frontend test suite yet.
+Tests cover health, schema comparison, database safety, baseline handling, HTTPS restrictions, workflow, local REST boundaries, PostgreSQL persistence, and frontend interactions. Seven PostgreSQL integration tests are skipped without `TEST_DATABASE_URL`; they never fall back to `DATABASE_URL`. Client generation runs before API development startup, API tests, typechecking, and builds. Frontend component tests mock API responses; the separately enabled browser workflow uses actual local API/database records and public HTTPS checks.
 
 ## JSON response-schema comparison (Phase 2)
 
@@ -98,4 +104,10 @@ In another terminal:
 & .\scripts\demo-monitoring.ps1
 ```
 
-The demo creates actual persistent development records and explicitly accepts a fresh baseline. No checks run automatically. Production management routes remain disabled, and the existing frontend is unchanged.
+The PowerShell demo creates actual persistent development records and explicitly accepts a fresh baseline. No checks run automatically. Production management routes remain disabled.
+
+## Developer dashboard (Phase 4)
+
+Open `http://localhost:5173` with the explicitly enabled local backend. The dashboard provides endpoint registration/listing, manual checks, baseline review and deliberate acceptance, actual persisted history, and field-level structural differences. It uses the existing Vite proxy and local header without weakening the backend's guards. Missing data stays missing; no metrics or monitoring activity are simulated.
+
+See [dashboard setup, architecture, tests, and screenshot instructions](docs/dashboard.md). Desktop/mobile screenshots from live verification are in the ignored `apps/web/artifacts` directory. Do not reinitialize either existing PostgreSQL database to run this dashboard.

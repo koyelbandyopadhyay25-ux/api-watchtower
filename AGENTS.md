@@ -1,7 +1,7 @@
 # Working on API Watchtower
 
 API Watchtower detects endpoint failures and JSON response-schema changes.
-The current implementation includes Phases 1–3B: foundation, schema comparison, PostgreSQL persistence, and manual local monitoring against a small public HTTPS allowlist. Keep comparison logic independent of HTTP and database code. Migration 20261025094835_init is applied to local watchtower_dev and isolated watchtower_test. Do not rerun initial database preparation on these populated schemas.
+The current implementation includes Phases 1–4: foundation, schema comparison, PostgreSQL persistence, manual local monitoring against a small public HTTPS allowlist, and a React developer dashboard. Keep comparison logic independent of HTTP and database code. Migration 20261025094835_init is applied to local watchtower_dev and isolated watchtower_test. Do not rerun initial database preparation on these populated schemas.
 
 - Keep React + Vite + TypeScript in `apps/web` and Express + TypeScript in `apps/api`.
 - Use PostgreSQL with Prisma. Keep schema and migrations in `apps/api/prisma`.
@@ -17,5 +17,7 @@ The current implementation includes Phases 1–3B: foundation, schema comparison
 - Database integration tests must use a separately confirmed local watchtower_test database, never DATABASE_URL. Do not truncate, reset, or delete unrelated records.
 - Initial migration creation requires a confirmed empty disposable local watchtower_dev database. Use the guarded db:migrate command. Do not use reset or force flags.
 - Work incrementally. Run `npm run typecheck`, `npm test`, and `npm run build` for relevant changes; report only checks actually executed.
+- Frontend requests must use the same-origin Vite /api proxy and required X-Watchtower-Local header, without credentials. Do not bundle Prisma, database credentials, or test fixtures in the frontend. Read docs/dashboard.md before changing data-loading or baseline confirmation behavior.
+- npm test runs both workspaces. Frontend component tests mock API data; the WATCHTOWER_LIVE_E2E=true browser test makes actual public requests and leaves real development history. Never create fake runtime metrics or incidents for screenshots.
 - Ask before deploying, publishing, or performing destructive operations.
 - Do not add monitoring, authentication, dashboard features, or deployment without a subsequent request.

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 coverage/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/artifacts/
 apps/api/src/generated/
 .env
 .env.*
