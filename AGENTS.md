@@ -1,7 +1,7 @@
 # Working on API Watchtower
 
 API Watchtower detects endpoint failures and JSON response-schema changes.
-The current implementation includes Phases 1–4: foundation, schema comparison, PostgreSQL persistence, manual local monitoring against a small public HTTPS allowlist, and a React developer dashboard. Keep comparison logic independent of HTTP and database code. Migration 20261025094835_init is applied to local watchtower_dev and isolated watchtower_test. Do not rerun initial database preparation on these populated schemas.
+The current implementation includes Phases 1–5A: foundation, schema comparison, PostgreSQL persistence, secure HTTPS monitoring, the developer dashboard, and a separately opted-in scheduling worker. Keep comparison logic independent of HTTP and database code. Migrations 20261025094835_init and 20261025121417_add_endpoint_scheduling are applied to local watchtower_dev and isolated watchtower_test. Do not rerun initial database preparation on these populated schemas.
 
 - Keep React + Vite + TypeScript in `apps/web` and Express + TypeScript in `apps/api`.
 - Use PostgreSQL with Prisma. Keep schema and migrations in `apps/api/prisma`.
@@ -21,3 +21,6 @@ The current implementation includes Phases 1–4: foundation, schema comparison,
 - npm test runs both workspaces. Frontend component tests mock API data; the WATCHTOWER_LIVE_E2E=true browser test makes actual public requests and leaves real development history. Never create fake runtime metrics or incidents for screenshots.
 - Ask before deploying, publishing, or performing destructive operations.
 - Do not add monitoring, authentication, dashboard features, or deployment without a subsequent request.
+- The Phase 5A migration was explicitly approved, applied to test first, tested, then applied to development. Worker persistence, stopped-worker inactivity, and restart recovery are verified. All schedules were left disabled and verification workers stopped. Future migrations still require review/approval; never rerun initialization/reset.
+- Keep application PostgreSQL sessions in UTC and scheduling-clock reads based on epoch milliseconds. Raw timestamptz decoding under a non-UTC server default caused a live verification offset; regression tests now cover this. Do not rewrite historical timestamps or original monitoring rows without explicit authorization.
+- All manual, baseline, and scheduled checks must retain the shared PostgreSQL transaction locks/global capacity and original secure fetcher. Worker opt-in is separate (ENABLE_SCHEDULER_WORKER=true plus NODE_ENV=development); endpoint opt-in defaults disabled. Never automatically accept baselines or claim a stopped worker is monitoring.

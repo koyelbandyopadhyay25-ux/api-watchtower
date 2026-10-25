@@ -108,15 +108,19 @@ export function createSafeJsonFetcher(dependencies: {
   timeoutMs?: number;
 } = {}) {
   let active = 0;
-  return async (target: string): Promise<FetchResult> => {
+  return async (target: string, externalSignal?: AbortSignal): Promise<FetchResult> => {
     if (active >= FETCH_LIMITS.concurrency) throw new FetchBusyError('Check capacity reached.');
     active++;
     const start = performance.now();
     let httpStatus: number | null = null;
     const controller = new AbortController();
+    const cancel = () => controller.abort();
+    externalSignal?.addEventListener('abort', cancel, { once: true });
+    if (externalSignal?.aborted) controller.abort();
     const timeout = setTimeout(() => controller.abort(), dependencies.timeoutMs ?? FETCH_LIMITS.timeoutMs);
     try {
       const url = validateTarget(target);
+      controller.signal.throwIfAborted();
       const addresses = await (dependencies.resolve ?? resolveIpv4)(url.hostname, controller.signal);
       controller.signal.throwIfAborted();
       if (!addresses.length || !addresses.every(isPublicIpv4)) throw new FetchFailure('network_error', 'unknown');
@@ -137,6 +141,7 @@ export function createSafeJsonFetcher(dependencies: {
         outcome: failure.outcome, errorCode: failure.errorCode };
     } finally {
       clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', cancel);
       active--;
     }
   };

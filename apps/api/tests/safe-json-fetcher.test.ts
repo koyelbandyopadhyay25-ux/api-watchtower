@@ -158,6 +158,25 @@ describe('bounded JSON HTTPS checking', () => {
     expect(request).not.toHaveBeenCalled();
   });
 
+  it('does not resolve or contact a destination if its execution budget is already cancelled', async () => {
+    const request = transport();
+    const resolve = vi.fn(async () => [publicIp]);
+    const stop = new AbortController(); stop.abort();
+    const check = createSafeJsonFetcher({ request: request as unknown as typeof https.request, resolve });
+    expect(await check(target, stop.signal)).toMatchObject({ ok: false, httpStatus: null, errorCode: 'timeout' });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('aborts an active HTTPS request when its shared execution budget is cancelled', async () => {
+    const { check } = fetcher({ hang: true });
+    const stop = new AbortController();
+    const pending = check(target, stop.signal);
+    await Promise.resolve();
+    stop.abort();
+    expect(await pending).toMatchObject({ ok: false, errorCode: 'timeout' });
+  });
+
   it.each([['ECONNRESET', 'connection_failure'], ['CERT_HAS_EXPIRED', 'tls_failure']])('categorizes %s without raw errors', async (code, category) => {
     const result = await fetcher({ errorCode: code }).check(target);
     expect(result).toMatchObject({ ok: false, errorCode: category });

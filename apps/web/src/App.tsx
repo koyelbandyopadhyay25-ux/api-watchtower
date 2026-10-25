@@ -25,7 +25,7 @@ function LocalSetup() {
     <section className="panel"><div className="panel-heading"><h2>Supported public test endpoints</h2></div><div className="panel-content readable">
       <ul className="url-list">{SUPPORTED_URLS.map(url => <li key={url}><code>{url}</code></li>)}</ul>
       <p>Only these exact URLs are supported. Checks use HTTPS on port 443, refuse redirects, and enforce destination, time, size, and concurrency limits.</p>
-      <p>All checks and baseline captures are manual. This local tool has no authentication or scheduled monitoring; keep it bound to localhost.</p>
+      <p>Baseline capture is always manual. Scheduled checks require explicit endpoint opt-in and a separate worker process. This local tool has no authentication; keep it bound to localhost.</p>
     </div></section></>;
 }
 
@@ -47,7 +47,7 @@ export function App() {
       <p className="sidebar-label">WORKSPACE</p><nav aria-label="Main navigation">
         <a href="#endpoints" className={view.kind === 'list' || view.kind === 'detail' ? 'nav-active' : ''} aria-current={view.kind === 'list' ? 'page' : undefined}>Endpoints</a>
         <a href="#setup" className={view.kind === 'setup' ? 'nav-active' : ''} aria-current={view.kind === 'setup' ? 'page' : undefined}>Local setup</a>
-      </nav><div className="sidebar-footer"><span className="sidebar-label">LOCAL WORKSPACE</span><p>Manual checks only.<br />No scheduled activity.</p></div>
+      </nav><div className="sidebar-footer"><span className="sidebar-label">LOCAL WORKSPACE</span><p>Checks persist locally.<br />Schedules require a worker.</p></div>
     </aside>
     <div className="workspace-body"><header className="topbar"><span>Workspace <span className="breadcrumb-slash">/</span> {view.kind === 'setup' ? 'Local setup' : 'Endpoints'}</span><span className="environment-label">Local development</span></header>
       <main id="main-content" className="main-content" ref={main} tabIndex={-1}>

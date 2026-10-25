@@ -2,6 +2,7 @@ import { Prisma, type CheckErrorCode, type CheckOutcome, type PrismaClient } fro
 import type { SchemaChange } from '../schema-comparison/schema-types.js';
 import { type BaselineSchema, isJsonType, serializeBaseline } from './baseline-schema.js';
 import { databaseOperation, DatabaseError } from './database-errors.js';
+import { acquireCheckLocks } from './check-coordination.js';
 
 export interface RecordCheckInput {
   endpointId: string;
@@ -23,7 +24,7 @@ function validateEndpoint(name: string, address: string): string {
   return url.href;
 }
 
-export function createMonitoringRepository(client: PrismaClient) {
+export function createMonitoringStore(client: Prisma.TransactionClient) {
   return {
     async createEndpoint(input: { name: string; url: string }) {
       const url = validateEndpoint(input.name, input.url);
@@ -46,13 +47,13 @@ export function createMonitoringRepository(client: PrismaClient) {
 
     async acceptBaseline(endpointId: string, expectedUpdatedAt: Date, baseline: BaselineSchema) {
       const baselineSchema = serializeBaseline(baseline);
-      return databaseOperation(() => client.$transaction(async transaction => {
-        const result = await transaction.endpoint.updateMany({
+      return databaseOperation(async () => {
+        const result = await client.endpoint.updateMany({
           where: { id: endpointId, updatedAt: expectedUpdatedAt }, data: { baselineSchema },
         });
         if (result.count !== 1) throw new DatabaseError('conflict');
-        return transaction.endpoint.findUniqueOrThrow({ where: { id: endpointId } });
-      }));
+        return client.endpoint.findUniqueOrThrow({ where: { id: endpointId } });
+      });
     },
 
     /** An explicit operation is the only way to set, replace, or clear a baseline. */
@@ -116,6 +117,67 @@ export function createMonitoringRepository(client: PrismaClient) {
         orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
         include: { schemaChanges: { orderBy: { path: 'asc' } } },
       }));
+    },
+
+    async databaseTime() {
+      // Epoch milliseconds are independent of timezone and adapter date parsing.
+      const rows = await client.$queryRaw<{ epochMs: bigint }[]>`
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000)::bigint AS "epochMs"
+      `;
+      return new Date(Number(rows[0]!.epochMs));
+    },
+
+    getSchedule: (endpointId: string) => databaseOperation(() => client.endpointSchedule.findUnique({ where: { endpointId } })),
+
+    saveSchedule: (endpointId: string, enabled: boolean, intervalMinutes: number, nextRunAt: Date | null) =>
+      databaseOperation(() => client.endpointSchedule.upsert({ where: { endpointId },
+        create: { endpointId, enabled, intervalMinutes, nextRunAt }, update: { enabled, intervalMinutes, nextRunAt } })),
+
+    async dueSchedules(limit = 3, excludedIds: string[] = []) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 3) throw new Error('Invalid schedule batch size.');
+      const now = await this.databaseTime();
+      return databaseOperation(() => client.endpointSchedule.findMany({
+        where: { enabled: true, nextRunAt: { lte: now }, endpointId: { notIn: excludedIds } }, orderBy: [{ nextRunAt: 'asc' }, { endpointId: 'asc' }], take: limit,
+      }));
+    },
+
+    recordScheduledCheck: (endpointId: string, checkResultId: string, scheduledFor: Date) =>
+      databaseOperation(() => client.scheduledCheck.create({ data: { endpointId, checkResultId, scheduledFor } })),
+
+    finishSchedule: (endpointId: string, startedAt: Date, finishedAt: Date, nextRunAt: Date, errorCode: string | null) =>
+      databaseOperation(() => client.endpointSchedule.update({ where: { endpointId },
+        data: { lastStartedAt: startedAt, lastFinishedAt: finishedAt, nextRunAt, lastErrorCode: errorCode } })),
+
+    async scheduledHistory(endpointId: string, limit = 50) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid history limit.');
+      return databaseOperation(() => client.scheduledCheck.findMany({ where: { endpointId }, take: limit,
+        orderBy: [{ scheduledFor: 'desc' }, { checkResultId: 'desc' }],
+        include: { checkResult: { include: { schemaChanges: { orderBy: { path: 'asc' } } } } } }));
+    },
+  };
+}
+
+export type MonitoringStore = ReturnType<typeof createMonitoringStore>;
+
+export function createMonitoringRepository(client: PrismaClient) {
+  const store = createMonitoringStore(client);
+  return {
+    ...store,
+    acceptBaseline: (id: string, expectedUpdatedAt: Date, baseline: BaselineSchema) =>
+      databaseOperation(() => client.$transaction(transaction => createMonitoringStore(transaction).acceptBaseline(id, expectedUpdatedAt, baseline))),
+
+    async runExclusive<T>(endpointId: string, operation: (store: MonitoringStore, signal: AbortSignal) => Promise<T>, capacity = true): Promise<T> {
+      // Deliberately bounded transaction: it owns locks AND all result/state writes.
+      // The HTTP deadline is 8s; the operation budget is 15s; transaction cap is 25s.
+      return client.$transaction(async transaction => {
+        await transaction.$executeRaw`SET LOCAL statement_timeout = '3000ms'`;
+        await transaction.$executeRaw`SET LOCAL lock_timeout = '1000ms'`;
+        await acquireCheckLocks(transaction, endpointId, capacity);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
+        try { return await operation(createMonitoringStore(transaction), controller.signal); }
+        finally { clearTimeout(timer); controller.abort(); }
+      }, { maxWait: 2_000, timeout: 25_000 });
     },
   };
 }

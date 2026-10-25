@@ -4,17 +4,22 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "prisma generate && tsx watch src/server.ts",
+    "dev": "prisma generate && tsx watch --exclude \"./src/generated/**\" src/server.ts",
     "build": "prisma generate && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
+    "dev:worker": "prisma generate && tsx src/worker/main.ts",
+    "start:worker": "node dist/worker/main.js",
+    "worker:once": "prisma generate && tsx src/worker/main.ts --once",
     "typecheck": "prisma generate && tsc --noEmit",
     "test": "prisma generate && vitest run",
-    "test:db": "prisma generate && vitest run tests/database.integration.test.ts",
+    "test:db": "prisma generate && vitest run tests/database.integration.test.ts tests/scheduling.integration.test.ts",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
     "db:migrate": "tsx scripts/initialize-database.ts development",
     "db:prepare-test": "tsx scripts/initialize-database.ts test",
-    "db:verify": "tsx src/database/verify-database.ts"
+    "db:verify": "tsx src/database/verify-database.ts",
+    "db:schedule:plan": "tsx scripts/scheduling-migration.ts plan",
+    "db:schedule:apply": "tsx scripts/scheduling-migration.ts apply"
   },
   "dependencies": {
     "@prisma/adapter-pg": "~7.10.1",

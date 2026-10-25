@@ -2,7 +2,7 @@
 
 ## Current verification status
 
-Local PostgreSQL connectivity has been verified at `127.0.0.1:5432`. The development database `watchtower_dev` has completed migration `20261025094835_init`. Before preparing `watchtower_test`, read-only queries confirmed its identity and that it contained no user relations or routines. The guarded preparation command then applied the same migration successfully. Phase 3B extends the original five integration tests to seven, including the REST monitoring workflow and optimistic baseline acceptance. No further migration is needed. Do not prepare/reset either existing database. The optional Docker Compose configuration has not been exercised.
+Local PostgreSQL connectivity has been verified at `127.0.0.1:5432`. Both databases have completed migrations `20261025094835_init` and `20261025121417_add_endpoint_scheduling`. The additive scheduling migration was explicitly approved, applied to test first, tested, then applied to development. The original 3 development endpoints and 9 checks were verified unchanged by per-row content hashes. See [the migration and worker verification record](scheduling.md). Do not prepare/reset either existing database. The optional Docker Compose configuration has not been exercised.
 
 ## Models and data boundaries
 
@@ -116,7 +116,9 @@ npm run build
 
 `db:prepare-test` verifies the database identity and emptiness, then applies the existing migration with `prisma migrate deploy`. Do not rerun preparation against a populated test database; rerun `test:db` directly. Test execution never creates/drops schemas or resets/truncates tables. It creates uniquely identified records, retrieves a committed endpoint through a second client, tests explicit baseline persistence, check/change storage, safe failures, referential integrity, and delete behavior. Cleanup deletes only the IDs created by that suite. These are synthetic integration-test records, not claimed monitoring activity.
 
-Without `TEST_DATABASE_URL`, the seven integration tests explicitly skip. With an invalid, unconfirmed, or unreachable test URL, they fail rather than falling back to the application database. The fixed distinct database names prevent the guarded migration workflow from using the test database as the development database. Never run these commands against a production database.
+Without `TEST_DATABASE_URL`, database integration tests explicitly skip. With an invalid, unconfirmed, or unreachable test URL, they fail rather than falling back to the application database. The existing-schema suite also tests PostgreSQL coordination across clients and timezone-safe timestamps. All 11 scheduling tests ran after the approved migration; the final database suite passed 22 tests with no skips. They skip on a fresh database without the scheduling migration and fail on a partial schema. Never run these commands against a production database.
+
+Application connections set their own session timezone to UTC, without changing server settings or stored rows. The scheduling clock reads epoch milliseconds rather than timezone-sensitive raw timestamptz text. Regression tests verify behavior with a non-UTC transaction timezone and compare ORM timestamps to database epoch values. Historical timestamp values were not rewritten.
 
 ## Troubleshooting: disposable database rejected and tests skipped
 
@@ -130,4 +132,4 @@ Npm workspace scripts execute from `apps/api`, so `dotenv/config` loads `apps/ap
 
 ## Next phase
 
-Local migration and integration verification are complete. Phase 3B now provides [manual HTTPS checks and explicit baseline capture](monitoring-api.md) against an exact public test allowlist using the same database schema. Scheduling, authentication, alerts, frontend dashboard work, and public deployment remain out of scope.
+Both migrations and scheduling persistence are verified. Manual HTTPS checks and baseline capture work with the Phase 4 dashboard; Phase 5A reuses those checks in a separate opt-in worker. Authentication, alerts, dashboard schedule controls, and public deployment remain future work.

@@ -9,6 +9,10 @@ export function createDatabaseClient(connectionString: string): PrismaClient {
   }
   const adapter = new PrismaPg({
     connectionString,
+    // Prisma's pg adapter normalizes timestamptz text as UTC. Set the session
+    // explicitly so a non-UTC PostgreSQL default cannot shift ORM timestamps.
+    // This affects only our connections, never the server configuration or rows.
+    options: '-c timezone=UTC',
     max: 5,
     connectionTimeoutMillis: 5_000,
     idleTimeoutMillis: 10_000,

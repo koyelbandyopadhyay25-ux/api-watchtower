@@ -8,6 +8,9 @@
     "dev": "concurrently --kill-others -n web,api \"npm run dev -w @watchtower/web\" \"npm run dev -w @watchtower/api\"",
     "dev:web": "npm run dev -w @watchtower/web",
     "dev:api": "npm run dev -w @watchtower/api",
+    "dev:worker": "npm run dev:worker -w @watchtower/api",
+    "start:worker": "npm run start:worker -w @watchtower/api",
+    "worker:once": "npm run worker:once -w @watchtower/api",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
@@ -18,7 +21,9 @@
     "db:generate": "npm run db:generate -w @watchtower/api",
     "db:migrate": "npm run db:migrate -w @watchtower/api",
     "db:prepare-test": "npm run db:prepare-test -w @watchtower/api",
-    "db:verify": "npm run db:verify -w @watchtower/api"
+    "db:verify": "npm run db:verify -w @watchtower/api",
+    "db:schedule:plan": "npm run db:schedule:plan -w @watchtower/api --",
+    "db:schedule:apply": "npm run db:schedule:apply -w @watchtower/api --"
   },
   "devDependencies": { "concurrently": "^9.2.1" }
 }

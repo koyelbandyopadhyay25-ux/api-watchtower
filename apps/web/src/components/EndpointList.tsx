@@ -20,7 +20,7 @@ export function EndpointList({ onAdd, registrationRevision = 0, registered }: { 
   const unavailable = rows?.filter(row => row.historyError).length ?? 0;
 
   return <>
-    <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Endpoints</h1><p className="muted">Manual checks and observed response structures.</p></div>
+    <div className="page-heading"><div><p className="eyebrow">Workspace</p><h1>Endpoints</h1><p className="muted">Saved checks and observed response structures.</p></div>
       <div className="actions"><button className="button" onClick={() => setRevision(value => value + 1)} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button><button className="button button-primary" onClick={onAdd}>Add endpoint</button></div>
     </div>
     {registered && <Notice tone="success">Registered {registered.name}. No checks have run automatically.</Notice>}
@@ -40,6 +40,6 @@ export function EndpointList({ onAdd, registrationRevision = 0, registered }: { 
             </tr>)}</tbody></table></div>}
       <div className="panel-footer">Latest saved result per endpoint. Healthy describes a successful HTTP/JSON check, not guaranteed compatibility.{rows?.length === 100 && ' Showing the latest 100 registrations; pagination is not available yet.'}</div>
     </section>
-    <p className="page-note">Checks are manual. Nothing runs on a schedule. Use Refresh to load changes made in another session.</p>
+    <p className="page-note">Use Refresh to load changes from another session or an active worker. Opening this page does not start background checks.</p>
   </>;
 }

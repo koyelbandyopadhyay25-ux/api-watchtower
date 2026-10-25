@@ -10,6 +10,7 @@ function fixture(baseline: JsonValue | undefined = undefined) {
   const repository = {
     getEndpoint: vi.fn(async () => endpoint), recordCheck: vi.fn(async input => ({ id: 'check', ...input })),
     acceptBaseline: vi.fn(async () => endpoint), createEndpoint: vi.fn(), listEndpoints: vi.fn(), listCheckResults: vi.fn(),
+    runExclusive: vi.fn(async (_id: string, operation: (store: unknown, signal: AbortSignal) => Promise<unknown>) => operation(repository, new AbortController().signal)),
   };
   const fetchJson = vi.fn(async () => ({ ok: true as const, value: { id: '1', added: true }, httpStatus: 200, responseTimeMs: 12 }));
   const service = createMonitoringService(repository as unknown as ReturnType<typeof createMonitoringRepository>, fetchJson);

@@ -10,6 +10,9 @@ function fixture(environment: NodeJS.ProcessEnv = { NODE_ENV: 'development', ENA
     list: vi.fn(async () => []), get: vi.fn(async () => ({ id })),
     check: vi.fn(async () => ({ check: { id: 'check' }, comparison: 'baseline_missing' })),
     acceptBaseline: vi.fn(async () => ({ endpoint: { id } })), history: vi.fn(async () => []),
+    schedule: vi.fn(async () => ({ endpointId: id, enabled: false, intervalMinutes: 15, nextRunAt: null })),
+    configureSchedule: vi.fn(async (_id: string, enabled: boolean, intervalMinutes: number) => ({ endpointId: id, enabled, intervalMinutes })),
+    scheduledHistory: vi.fn(async () => []),
   };
   return { app: createApp({ monitoring: service as unknown as MonitoringService, environment }), service };
 }
@@ -89,5 +92,21 @@ describe('local development management API', () => {
     const response = await request(app).get('/api/endpoints').set('X-Watchtower-Local', '1');
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ error: 'internal_error' });
+  });
+
+  it('uses the existing local boundary for schedule configuration and provenance', async () => {
+    const { app, service } = fixture();
+    expect((await request(app).get(`/api/endpoints/${id}/schedule`)).status).toBe(403);
+    const initial = await request(app).get(`/api/endpoints/${id}/schedule`).set('X-Watchtower-Local', '1');
+    expect(initial.body.enabled).toBe(false);
+    const changed = await request(app).put(`/api/endpoints/${id}/schedule`).set('X-Watchtower-Local', '1').send({ enabled: true, intervalMinutes: 5 });
+    expect(changed.status).toBe(200);
+    expect(service.configureSchedule).toHaveBeenCalledWith(id, true, 5);
+    expect((await request(app).get(`/api/endpoints/${id}/scheduled-checks`).set('X-Watchtower-Local', '1')).body).toEqual({ runs: [] });
+  });
+
+  it.each([{ enabled: true, intervalMinutes: 1 }, { enabled: 'true', intervalMinutes: 5 },
+    { enabled: true, intervalMinutes: 5, nextRunAt: 'arbitrary' }, { enabled: false }])('rejects invalid schedule settings (%j)', async input => {
+    expect((await request(fixture().app).put(`/api/endpoints/${id}/schedule`).set('X-Watchtower-Local', '1').send(input)).status).toBe(400);
   });
 });

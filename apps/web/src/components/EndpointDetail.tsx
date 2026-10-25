@@ -53,7 +53,7 @@ export function EndpointDetail({ id }: { id: string }) {
     {!data ? <div className="panel empty-state" aria-busy={loading}>{error ? 'Endpoint details could not be loaded. Use Refresh detail to retry.' : 'Loading endpoint and persisted history…'}</div> : <>
       {!supported && <Notice tone="warning">This saved URL is outside the current public test allowlist. Its history is available, but checking and baseline capture are disabled. See Local setup for supported URLs.</Notice>}
       <section className="panel" aria-labelledby="latest-heading" aria-busy={loading}>
-        <div className="panel-heading"><h2 id="latest-heading">Latest persisted check</h2><span className="small muted">Manual monitoring</span></div>
+        <div className="panel-heading"><h2 id="latest-heading">Latest persisted check</h2><span className="small muted">Saved monitoring results</span></div>
         <dl className="result-strip"><div><dt>Result</dt><dd><StatusBadge check={latest} /></dd></div>
           <div><dt>HTTP status</dt><dd className="mono">{latest?.httpStatus ?? '—'}</dd></div>
           <div><dt>Response time</dt><dd className="mono">{latest?.responseTimeMs != null ? `${latest.responseTimeMs} ms` : '—'}</dd></div>

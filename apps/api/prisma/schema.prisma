@@ -42,6 +42,8 @@ model Endpoint {
   createdAt      DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
   checks         CheckResult[]
+  schedule       EndpointSchedule?
+  scheduledChecks ScheduledCheck[]
 }
 
 model CheckResult {
@@ -54,6 +56,7 @@ model CheckResult {
   errorCode      CheckErrorCode?
   checkedAt      DateTime       @default(now()) @db.Timestamptz(3)
   schemaChanges  SchemaChange[]
+  scheduledCheck ScheduledCheck?
 
   @@index([endpointId, checkedAt])
 }
@@ -68,4 +71,30 @@ model SchemaChange {
   currentTypes  String[]
 
   @@index([checkResultId])
+}
+
+// No row means disabled. Existing endpoints and history need no backfill.
+model EndpointSchedule {
+  endpointId      String   @id @db.Uuid
+  endpoint        Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  enabled         Boolean  @default(false)
+  intervalMinutes Int      @default(15)
+  nextRunAt       DateTime? @db.Timestamptz(3)
+  lastStartedAt   DateTime? @db.Timestamptz(3)
+  lastFinishedAt  DateTime? @db.Timestamptz(3)
+  lastErrorCode   String?   @db.VarChar(40)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([enabled, nextRunAt])
+}
+
+// Provenance for actual saved checks; no response bodies or invented attempts.
+model ScheduledCheck {
+  checkResultId String      @id @db.Uuid
+  checkResult   CheckResult @relation(fields: [checkResultId], references: [id], onDelete: Cascade)
+  endpointId    String      @db.Uuid
+  endpoint      Endpoint    @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  scheduledFor  DateTime    @db.Timestamptz(3)
+
+  @@unique([endpointId, scheduledFor])
 }

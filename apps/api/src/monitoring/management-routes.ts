@@ -3,6 +3,8 @@ import { DatabaseError } from '../database/database-errors.js';
 import { FetchBusyError } from './safe-json-fetcher.js';
 import { MonitoringError, type MonitoringService } from './monitoring-service.js';
 import { UrlPolicyError } from './url-policy.js';
+import { CheckCoordinationError } from '../database/check-coordination.js';
+import { isMonitoringInterval } from '../scheduling/schedule-policy.js';
 
 export function localManagementEnabled(environment: NodeJS.ProcessEnv): boolean {
   return environment.NODE_ENV === 'development' && environment.ENABLE_LOCAL_MANAGEMENT === 'true';
@@ -89,8 +91,24 @@ export function managementRoutes(service: MonitoringService, apiPort = '3001') {
     response.json(await service.acceptBaseline(request.params.id!, input.expectedUpdatedAt));
   });
 
+  router.get('/endpoints/:id/schedule', async (request, response) => {
+    response.json(await service.schedule(request.params.id!));
+  });
+  router.put('/endpoints/:id/schedule', async (request, response) => {
+    const input = body(request.body, ['enabled', 'intervalMinutes']);
+    if (typeof input.enabled !== 'boolean' || !isMonitoringInterval(input.intervalMinutes)) {
+      throw new MonitoringError(400, 'enabled_and_supported_interval_required');
+    }
+    response.json(await service.configureSchedule(request.params.id!, input.enabled, input.intervalMinutes));
+  });
+  router.get('/endpoints/:id/scheduled-checks', async (request, response) => {
+    response.json({ runs: await service.scheduledHistory(request.params.id!, limit(request.query.limit)) });
+  });
+
   const handleError: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
     if (error instanceof MonitoringError) response.status(error.status).json({ error: error.code });
+    else if (error instanceof CheckCoordinationError) response.status(error.reason === 'capacity' ? 429 : 409)
+      .json({ error: error.reason === 'capacity' ? 'check_capacity_reached' : 'check_already_running' });
     else if (error instanceof UrlPolicyError) response.status(400).json({ error: 'url_not_allowed' });
     else if (error instanceof FetchBusyError) response.status(429).json({ error: 'check_capacity_reached' });
     else if (error instanceof DatabaseError) {

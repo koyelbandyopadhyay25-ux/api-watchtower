@@ -4,12 +4,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabaseClient } from '../src/database/database-client.js';
 import { assertDisposableDatabase } from '../src/database/disposable-database.js';
 import { DatabaseError } from '../src/database/database-errors.js';
-import { createMonitoringRepository } from '../src/database/monitoring-repository.js';
+import { createMonitoringRepository, createMonitoringStore } from '../src/database/monitoring-repository.js';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { createMonitoringService } from '../src/monitoring/monitoring-service.js';
 import { inferJsonSchema } from '../src/schema-comparison/compare-json-schema.js';
 import type { JsonValue } from '../src/schema-comparison/schema-types.js';
+import { CheckCoordinationError } from '../src/database/check-coordination.js';
 
 // No fallback to DATABASE_URL. Missing infrastructure is explicitly skipped.
 describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolated test database)', () => {
@@ -60,6 +61,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolate
     } finally {
       await reader.$disconnect();
     }
+  });
+
+  it('uses UTC sessions and returns actual database instants even in a non-UTC transaction', async () => {
+    const timezone = await client.$queryRaw<{ zone: string }[]>`SELECT current_setting('TimeZone') AS zone`;
+    expect(timezone[0]?.zone).toBe('UTC');
+    await client.$transaction(async transaction => {
+      await transaction.$executeRaw`SET LOCAL TIME ZONE 'Asia/Calcutta'`;
+      const before = await transaction.$queryRaw<{ epochMs: bigint }[]>`
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000)::bigint AS "epochMs"
+      `;
+      const instant = await createMonitoringStore(transaction).databaseTime();
+      const after = await transaction.$queryRaw<{ epochMs: bigint }[]>`
+        SELECT (extract(epoch FROM clock_timestamp()) * 1000)::bigint AS "epochMs"
+      `;
+      expect(instant.getTime()).toBeGreaterThanOrEqual(Number(before[0]!.epochMs));
+      expect(instant.getTime()).toBeLessThanOrEqual(Number(after[0]!.epochMs));
+    });
+  });
+
+  it('preserves actual timestamp instants across Prisma and native PostgreSQL reads', async () => {
+    const record = await endpoint();
+    const actual = new Date();
+    const check = await repository.recordCheck({ endpointId: record.id, checkedAt: actual,
+      httpStatus: 200, responseTimeMs: 1, outcome: 'success' });
+    const nativeEpoch = await client.$queryRaw<{ epochMs: bigint }[]>`
+      SELECT (extract(epoch FROM "checkedAt") * 1000)::bigint AS "epochMs"
+      FROM "CheckResult" WHERE "id" = ${check.id}::uuid
+    `;
+    expect(Number(nativeEpoch[0]!.epochMs)).toBe(actual.getTime());
+    expect((await repository.getCheckResult(check.id))?.checkedAt).toEqual(actual);
   });
 
   it('records a check and schema changes without replacing the baseline', async () => {
@@ -163,5 +194,38 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolate
     await expect(repository.acceptBaseline(saved.id, new Date(0), inferJsonSchema({ changed: 1 })))
       .rejects.toMatchObject({ code: 'conflict' });
     expect((await repository.getEndpoint(saved.id))?.baselineSchema).toEqual(baseline);
+  });
+
+  it('coordinates endpoint ownership across separate DB clients without needing new tables', async () => {
+    const reader = createDatabaseClient(process.env.TEST_DATABASE_URL!);
+    const other = createMonitoringRepository(reader);
+    let entered!: () => void, release!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const id = randomUUID();
+    const pending = repository.runExclusive(id, async () => { entered(); await gate; return true; });
+    try {
+      await started;
+      await expect(other.runExclusive(id, async () => true)).rejects.toBeInstanceOf(CheckCoordinationError);
+    } finally { release(); await pending; }
+    try { expect(await other.runExclusive(id, async () => true)).toBe(true); }
+    finally { await reader.$disconnect(); }
+  });
+
+  it('reserves no more than three global transaction slots across DB clients', async () => {
+    const reader = createDatabaseClient(process.env.TEST_DATABASE_URL!);
+    const other = createMonitoringRepository(reader);
+    let entered!: () => void, release!: () => void, count = 0;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const pending = Array.from({ length: 3 }, () => repository.runExclusive(randomUUID(), async () => {
+      if (++count === 3) entered();
+      await gate;
+      return true;
+    }));
+    try {
+      await started;
+      await expect(other.runExclusive(randomUUID(), async () => true)).rejects.toMatchObject({ reason: 'capacity' });
+    } finally { release(); await Promise.all(pending); await reader.$disconnect(); }
   });
 });

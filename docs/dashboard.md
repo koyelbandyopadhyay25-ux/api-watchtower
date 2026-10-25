@@ -51,7 +51,7 @@ apps/web/src/
 
 The existing backend list route returns endpoints without check summaries. The frontend therefore makes at most four concurrent history reads (`limit=1`) after loading registrations. This preserves the API and avoids a burst of 100 simultaneous reads. A partial read failure produces an unavailable status, not “never checked.” Detail reads combine the endpoint and history; a failed read never looks like an empty history and disables mutations until a successful refresh.
 
-Plain React state/effects and hash navigation keep this phase understandable without adding a router, state framework, or query library. Reads are aborted when a view changes, and late results do not replace another endpoint's data. Mutations are not optimistically fabricated; the UI reloads persisted state after each attempt. There is no polling, scheduling, or live-activity simulation. Lists/history are bounded to the existing API's latest 100 records, explicitly described as a view rather than a total.
+Plain React state/effects and hash navigation keep this phase understandable without adding a router, state framework, or query library. Reads are aborted when a view changes, and late results do not replace another endpoint's data. Mutations are not optimistically fabricated; the UI reloads persisted state after each attempt. The browser does not poll or schedule checks or simulate activity. An independently opted-in Phase 5A worker can produce new persisted results after its approved migration; use Refresh to load them. Lists/history are bounded to the existing API's latest 100 records, explicitly described as a view rather than a total.
 
 The desktop sidebar becomes compact horizontal navigation on mobile. Wide tables scroll within their panels, can receive keyboard focus, and retain semantic captions/headers. Native dialogs provide focus containment and Escape cancellation; focus returns to the opener. Visible labels, status text alongside color, live notices, UTC timestamps, high-contrast text, and visible focus indicators support keyboard/screen-reader use. No decorative images, chart libraries, runtime UI dependencies, or fabricated dashboard metrics were added.
 
@@ -82,7 +82,7 @@ npm run build
 
 Frontend tests use Vitest, jsdom, and Testing Library. Their fixtures live only under `apps/web/tests` and are not imported by the running application. Test coverage includes loading/empty/error states, status distinctions, partial history failures, registration validation and list reload, manual checking/busy states, failed upstream results, history selection, structural differences, deliberate capture/replacement, stale conflicts, and failed capture recovery.
 
-Final local results:
+Verified Phase 4 results (the current Phase 5A pre-migration results are in the worker guide):
 
 | Verification | Actual result |
 | --- | --- |
@@ -108,4 +108,4 @@ The first browser run exposed mobile overflow from absolutely positioned screen-
 
 ## Known limits
 
-Only the existing two public JSONPlaceholder URLs are supported. No automatic polling/checking, scheduling, alerts, authentication, endpoint editing/deletion, cursor pagination, or public deployment is included. Manual Refresh loads updates from other sessions. Historical baseline versioning is not available in the existing database model. Testing-library tests mock network data, while live browser verification depends on the actual local PostgreSQL service and public test provider being available.
+Only the existing two public JSONPlaceholder URLs are supported. The browser has no automatic polling/checking or schedule controls. The separate [Phase 5A worker](scheduling.md) requires its approved migration, process opt-in, and per-endpoint opt-in; it does not run when stopped. Alerts, authentication, endpoint editing/deletion, cursor pagination, and public deployment are not included. Manual Refresh loads updates from other sessions or an active worker. Historical baseline versioning is not available. Testing-library tests mock network data, while live browser verification depends on actual local PostgreSQL and the public test provider.
