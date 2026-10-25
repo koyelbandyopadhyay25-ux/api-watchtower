@@ -19,7 +19,8 @@ function LocalSetup() {
     <section className="panel"><div className="panel-heading"><h2>Enable management explicitly</h2></div><div className="panel-content readable">
       <p>Use the existing migrated PostgreSQL databases. Keep credentials in <code>apps/api/.env</code>, never in frontend files. Do not reinitialize a populated database.</p>
       <p>From the repository root, start both applications in a PowerShell terminal:</p>
-      <pre className="command-block">{"$env:NODE_ENV = 'development'\n$env:ENABLE_LOCAL_MANAGEMENT = 'true'\nnpm run dev"}</pre>
+      <pre className="command-block">{"$env:NODE_ENV = 'development'\n$env:ENABLE_LOCAL_MANAGEMENT = 'true'\n$env:AUTH_COOKIE_SECURE = 'false' # localhost HTTP only\nnpm run dev"}</pre>
+      <p>The cookie exception applies only to this local HTTP development process. Secure cookies remain the default; this setup is not approved for public deployment.</p>
       <p>The frontend uses port <code>5173</code>, and the API uses <code>3001</code>. Management requests stay on the local Vite proxy and include the required local header.</p>
       <p><a className="inline-link" href="/api/health" target="_blank" rel="noreferrer">Open process health in a new tab</a>. Process health does not verify PostgreSQL readiness.</p>
     </div></section>

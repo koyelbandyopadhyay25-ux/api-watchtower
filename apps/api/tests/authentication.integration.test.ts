@@ -9,6 +9,7 @@ import { createAuthService, sessionHash } from '../src/auth/auth-service.js';
 import { createMonitoringRepository } from '../src/database/monitoring-repository.js';
 import { createMonitoringService } from '../src/monitoring/monitoring-service.js';
 import { createApp } from '../src/app.js';
+import { notificationCleanup } from './helpers/notification-cleanup.js';
 
 describe.skipIf(!await authSchemaReady())('authentication PostgreSQL isolation (requires approved migration)', () => {
   let client: ReturnType<typeof createDatabaseClient>;
@@ -19,6 +20,7 @@ describe.skipIf(!await authSchemaReady())('authentication PostgreSQL isolation (
   });
   afterEach(async () => {
     await client.$transaction([
+      ...notificationCleanup(client, [...endpoints]),
       client.checkResult.deleteMany({ where: { endpointId: { in: [...endpoints] } } }),
       client.endpoint.deleteMany({ where: { id: { in: [...endpoints] } } }),
       client.user.deleteMany({ where: { id: { in: [...users] } } }),

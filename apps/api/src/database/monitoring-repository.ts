@@ -3,6 +3,7 @@ import type { SchemaChange } from '../schema-comparison/schema-types.js';
 import { type BaselineSchema, isJsonType, serializeBaseline } from './baseline-schema.js';
 import { databaseOperation, DatabaseError } from './database-errors.js';
 import { acquireCheckLocks } from './check-coordination.js';
+import { createNotificationStore } from '../notifications/notification-store.js';
 
 export interface RecordCheckInput {
   endpointId: string;
@@ -26,6 +27,7 @@ function validateEndpoint(name: string, address: string): string {
 
 export function createMonitoringStore(client: Prisma.TransactionClient) {
   return {
+    notifications: createNotificationStore(client),
     async createEndpoint(input: { name: string; url: string; ownerId?: string }) {
       const url = validateEndpoint(input.name, input.url);
       // Baselines always start as SQL NULL. Checks never update this column.

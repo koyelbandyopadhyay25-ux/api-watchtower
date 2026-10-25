@@ -59,3 +59,13 @@ export interface EndpointRow {
   latest: CheckResult | null;
   historyError: string | null;
 }
+export interface NotificationSettings { endpointId: string; enabled: boolean; updatedAt: string | null }
+export interface NotificationEvent {
+  id: string;
+  kind: 'failure' | 'recovery' | 'schema_changed' | 'schema_restored';
+  createdAt: string;
+  incident: { id: string; kind: 'availability' | 'schema'; openedAt: string; closedAt: string | null; resolution: string | null };
+  checkResult: CheckResult;
+  outbox: null | { state: 'pending' | 'processing' | 'smtp_accepted' | 'failed' | 'cancelled'; attempts: number; availableAt: string; finishedAt: string | null; lastErrorCode: string | null;
+    deliveries: { number: number; state: string; startedAt: string; finishedAt: string | null; errorCode: string | null }[] };
+}

@@ -17,6 +17,7 @@ async function main() {
     await repository.databaseTime();
     await repository.dueSchedules(1);
     await database.scheduledCheck.count();
+    await database.notificationEvent.count();
     const worker = createMonitoringWorker(repository, createMonitoringService(repository), event => console.log(JSON.stringify(event)));
     console.log(JSON.stringify({ event: 'worker_started', pollSeconds: 5, maxConcurrentChecks: 3 }));
     if (process.argv.includes('--once')) await worker.tick(stop.signal);

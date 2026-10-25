@@ -1,5 +1,7 @@
 # Developer dashboard (Phase 4)
 
+Phase 6B adds compact notification opt-in, incident/event history and truthful Mailpit attempt states using real backend routes and the applied notification migration. See [notification settings and limitations](notifications.md) and [live browser/Mailpit verification](phase6b-final-verification.md). Existing dashboard layout/authentication are preserved. For HTTP localhost, set AUTH_COOKIE_SECURE=false on the API process explicitly; the secure default is unchanged.
+
 **Phase 6A supersedes the unauthenticated setup below:** the application entry restores a server-managed session before mounting the dashboard. Registration, login and logout are implemented; the Vite proxy carries an HttpOnly cookie and writes include an in-memory CSRF token. Existing endpoints stay unclaimed and invisible to new users. The authentication migration was approved and applied test first, then development. See [authentication verification and local HTTP cookie settings](authentication.md). Earlier verification sections remain historical Phase 4/5B results.
 
 ## Persisted monitoring controls (Phase 5B)

@@ -1,5 +1,7 @@
 # Manual monitoring API (Phase 3B)
 
+Phase 6B adds owner-isolated notification settings/history routes and transactional incident/outbox writes from real checks. Its approved migration is applied to both local databases. See [notification routes](notifications.md) and [verification evidence](phase6b-final-verification.md). Existing authentication, CSRF, local guards and HTTPS restrictions remain unchanged.
+
 **Phase 6A authentication requirement:** all endpoint routes now additionally require a valid cookie session, and state changes require its `X-CSRF-Token`. Owner IDs come only from that session; another user's or an unclaimed UUID returns 404. The original local guard remains mandatory. Existing examples without authentication correctly fail. The additive migration is approved and applied to both local databases; see [auth routes, preservation and verification](authentication.md).
 
 Phase 5B read-only response addition: check-history entries include `scheduledCheck: { scheduledFor: "<UTC ISO timestamp>" }` for scheduled results and `scheduledCheck: null` for manual checks (including explicit baseline captures). This reads the existing relation; no records or schema are changed. Clients must treat absent metadata as unknown rather than guessing provenance. The capture/check POST responses need not include this relation; refresh history after actions.

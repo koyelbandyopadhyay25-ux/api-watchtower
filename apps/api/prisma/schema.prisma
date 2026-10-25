@@ -47,6 +47,9 @@ model Endpoint {
   checks         CheckResult[]
   schedule       EndpointSchedule?
   scheduledChecks ScheduledCheck[]
+  notificationPreference NotificationPreference?
+  incidents Incident[]
+  notificationEvents NotificationEvent[]
   @@index([ownerId, createdAt])
 }
 
@@ -57,6 +60,7 @@ model User {
   createdAt    DateTime   @default(now()) @db.Timestamptz(3)
   sessions     Session[]
   endpoints    Endpoint[]
+  notificationEvents NotificationEvent[]
 }
 
 model Session {
@@ -82,6 +86,9 @@ model CheckResult {
   checkedAt      DateTime       @default(now()) @db.Timestamptz(3)
   schemaChanges  SchemaChange[]
   scheduledCheck ScheduledCheck?
+  openedIncidents Incident[] @relation("IncidentOpening")
+  closedIncidents Incident[] @relation("IncidentClosing")
+  notificationEvents NotificationEvent[]
 
   @@index([endpointId, checkedAt])
 }
@@ -122,4 +129,105 @@ model ScheduledCheck {
   scheduledFor  DateTime    @db.Timestamptz(3)
 
   @@unique([endpointId, scheduledFor])
+}
+
+enum IncidentKind {
+  availability
+  schema
+}
+
+enum NotificationKind {
+  failure
+  recovery
+  schema_changed
+  schema_restored
+}
+
+enum EmailState {
+  pending
+  processing
+  smtp_accepted
+  failed
+  cancelled
+}
+
+enum EmailAttemptState {
+  in_progress
+  smtp_accepted
+  retry_scheduled
+  permanent_failure
+  interrupted
+  cancelled
+}
+
+// Absence means disabled. Recipient addresses are NOT configurable in this phase.
+model NotificationPreference {
+  endpointId String @id @db.Uuid
+  endpoint Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  enabled Boolean @default(false)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model Incident {
+  id String @id @default(uuid()) @db.Uuid
+  endpointId String @db.Uuid
+  endpoint Endpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  kind IncidentKind
+  openedCheckId String @db.Uuid
+  openedCheck CheckResult @relation("IncidentOpening", fields: [openedCheckId], references: [id], onDelete: Restrict)
+  closedCheckId String? @db.Uuid
+  closedCheck CheckResult? @relation("IncidentClosing", fields: [closedCheckId], references: [id], onDelete: Restrict)
+  openedAt DateTime @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  resolution String? @db.VarChar(32)
+  fingerprint String? @db.Char(64)
+  events NotificationEvent[]
+  // A partial unique index in SQL additionally enforces one open incident per kind.
+  @@index([endpointId, openedAt])
+}
+
+model NotificationEvent {
+  id String @id @default(uuid()) @db.Uuid
+  endpointId String @db.Uuid
+  endpoint Endpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  ownerId String @db.Uuid
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  incidentId String @db.Uuid
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  checkResultId String @db.Uuid
+  checkResult CheckResult @relation(fields: [checkResultId], references: [id], onDelete: Restrict)
+  endpointName String @db.VarChar(100)
+  kind NotificationKind
+  createdAt DateTime @db.Timestamptz(3)
+  outbox EmailOutbox?
+  @@unique([checkResultId, kind])
+  @@index([ownerId, endpointId, createdAt])
+}
+
+model EmailOutbox {
+  eventId String @id @db.Uuid
+  event NotificationEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  state EmailState @default(pending)
+  attempts Int @default(0)
+  availableAt DateTime @default(now()) @db.Timestamptz(3)
+  leaseToken String? @db.Uuid
+  leaseExpiresAt DateTime? @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  lastErrorCode String? @db.VarChar(40)
+  deliveries EmailAttempt[]
+  @@index([state, availableAt])
+  @@index([state, leaseExpiresAt])
+}
+
+model EmailAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  eventId String @db.Uuid
+  outbox EmailOutbox @relation(fields: [eventId], references: [eventId], onDelete: Restrict)
+  number Int
+  leaseToken String @db.Uuid
+  state EmailAttemptState @default(in_progress)
+  startedAt DateTime @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  errorCode String? @db.VarChar(40)
+  @@unique([eventId, number])
 }

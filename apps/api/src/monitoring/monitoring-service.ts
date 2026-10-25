@@ -58,10 +58,14 @@ export function createMonitoringService(
       });
       const comparison = !response.ok ? 'not_compared'
         : endpoint.baselineSchema === null ? 'baseline_missing' : 'compared';
+      // Same endpoint lock and transaction as the actual check and schedule state.
+      // Only the separate dispatcher performs SMTP, after these writes commit.
+      if (endpoint.ownerId) await store.notifications.observe(endpoint, check);
       if (expectedUpdatedAt !== undefined) {
         if (!schema) return { result: { check, comparison }, error: new MonitoringError(422, 'baseline_capture_failed_check_saved') };
         try {
           const accepted = await store.acceptBaseline(id, new Date(expectedUpdatedAt), schema);
+          if (endpoint.ownerId) await store.notifications.resolveForBaseline(id, check.id, check.checkedAt);
           return { result: { check, comparison, endpoint: accepted }, error: null };
         } catch (error) {
           // A stale optimistic update is not a SQL error: commit the actual check,
@@ -132,6 +136,22 @@ export function createMonitoringService(
     async scheduledHistory(id: string, limit: number, ownerId?: string) {
       await requireEndpoint(id, repository, ownerId);
       return repository.scheduledHistory(id, limit);
+    },
+    async notificationSettings(id: string, ownerId: string) {
+      await requireEndpoint(id, repository, ownerId);
+      return await repository.notifications.preference(id) ?? { endpointId: id, enabled: false, updatedAt: null };
+    },
+    async configureNotifications(id: string, enabled: boolean, expectedUpdatedAt: string | null, ownerId: string) {
+      return repository.runExclusive(id, async store => {
+        await requireEndpoint(id, store, ownerId);
+        const previous = await store.notifications.preference(id);
+        if ((previous?.updatedAt.toISOString() ?? null) !== expectedUpdatedAt) throw new MonitoringError(409, 'stale_notification_settings');
+        return store.notifications.configure(id, enabled);
+      }, false);
+    },
+    async notificationHistory(id: string, limit: number, ownerId: string) {
+      await requireEndpoint(id, repository, ownerId);
+      return repository.notifications.history(id, ownerId, limit);
     },
   };
 }

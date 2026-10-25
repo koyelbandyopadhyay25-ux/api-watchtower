@@ -108,6 +108,18 @@ export function managementRoutes(service: MonitoringService, apiPort = '3001', a
   router.get('/endpoints/:id/scheduled-checks', async (request, response) => {
     response.json({ runs: await service.scheduledHistory(request.params.id!, limit(request.query.limit), response.locals.authentication.user.id) });
   });
+  router.get('/endpoints/:id/notification-settings', async (request, response) => {
+    response.json(await service.notificationSettings(request.params.id!, response.locals.authentication.user.id));
+  });
+  router.put('/endpoints/:id/notification-settings', async (request, response) => {
+    const input = body(request.body, ['enabled', 'expectedUpdatedAt']);
+    if (typeof input.enabled !== 'boolean' || !(input.expectedUpdatedAt === null || (typeof input.expectedUpdatedAt === 'string' &&
+      Number.isFinite(Date.parse(input.expectedUpdatedAt)) && new Date(input.expectedUpdatedAt).toISOString() === input.expectedUpdatedAt))) throw new MonitoringError(400, 'notification_settings_required');
+    response.json(await service.configureNotifications(request.params.id!, input.enabled, input.expectedUpdatedAt, response.locals.authentication.user.id));
+  });
+  router.get('/endpoints/:id/notifications', async (request, response) => {
+    response.json({ events: await service.notificationHistory(request.params.id!, limit(request.query.limit), response.locals.authentication.user.id) });
+  });
 
   const handleError: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
     if (error instanceof AuthError) response.status(error.status).json({ error: error.code });

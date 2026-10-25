@@ -6,6 +6,7 @@ import { BaselineConfirmation } from './BaselineConfirmation';
 import { CheckHistory, SchemaChanges } from './CheckHistory';
 import { Notice, StatusBadge, Timestamp } from './common';
 import { MonitoringSettings } from './MonitoringSettings';
+import { Notifications } from './Notifications';
 
 export function EndpointDetail({ id }: { id: string }) {
   const { data, loading, error, refresh } = useEndpointDetail(id);
@@ -14,6 +15,7 @@ export function EndpointDetail({ id }: { id: string }) {
   const [notice, setNotice] = useState<{ text: string; tone: 'success' | 'warning' | 'error' } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const [notificationBusy, setNotificationBusy] = useState(false);
   const [settingsRevision, setSettingsRevision] = useState(0);
   function refreshAll() { refresh(); setSettingsRevision(value => value + 1); }
   const mounted = useRef(true);
@@ -44,12 +46,12 @@ export function EndpointDetail({ id }: { id: string }) {
   const latest = data?.checks[0] ?? null;
   const selected = data?.checks.find(check => check.id === selectedId) ?? latest;
   const supported = endpoint ? supportedUrl(endpoint.url) !== null : false;
-  const disabled = Boolean(busy || settingsBusy || loading || error || !supported);
+  const disabled = Boolean(busy || settingsBusy || notificationBusy || loading || error || !supported);
 
   return <>
     <a className="back-link" href="#endpoints">← All endpoints</a>
     <div className="page-heading"><div><p className="eyebrow">Endpoint detail</p><h1>{endpoint?.name ?? 'Endpoint'}</h1>{endpoint && <p className="mono endpoint-address">{endpoint.url}</p>}</div>
-      <div className="actions"><button className="button" disabled={Boolean(loading || busy || settingsBusy)} onClick={refreshAll}>{loading ? 'Loading…' : 'Refresh detail'}</button>
+      <div className="actions"><button className="button" disabled={Boolean(loading || busy || settingsBusy || notificationBusy)} onClick={refreshAll}>{loading ? 'Loading…' : 'Refresh detail'}</button>
         <button className="button button-primary" disabled={disabled} onClick={() => void run('check')}>{busy === 'check' ? 'Checking…' : 'Run check'}</button></div>
     </div>
     {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
@@ -64,7 +66,7 @@ export function EndpointDetail({ id }: { id: string }) {
           <div><dt>Checked at (UTC)</dt><dd><Timestamp value={latest?.checkedAt} /></dd></div></dl>
         {latest?.errorCode && <div className="panel-footer">Error category: <code>{latest.errorCode}</code></div>}
       </section>
-      <MonitoringSettings key={id} id={id} revision={settingsRevision} blocked={Boolean(busy || loading || error)} supported={supported} onSaved={refresh} onBusy={setSettingsBusy} />
+      <MonitoringSettings key={id} id={id} revision={settingsRevision} blocked={Boolean(busy || notificationBusy || loading || error)} supported={supported} onSaved={refresh} onBusy={setSettingsBusy} />
       <section className="panel" aria-labelledby="baseline-heading">
         <div className="panel-heading"><h2 id="baseline-heading">Accepted baseline</h2><span className="small muted">{endpoint!.baselineSchema === null ? 'Not accepted' : 'Saved structure'}</span></div>
         <div className="baseline-content"><div><h3>{endpoint!.baselineSchema === null ? 'No baseline accepted' : 'Baseline accepted'}</h3>
@@ -75,6 +77,7 @@ export function EndpointDetail({ id }: { id: string }) {
       </section>
       <CheckHistory checks={data.checks} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
       <SchemaChanges check={selected} baselineMissing={endpoint!.baselineSchema === null} />
+      <Notifications key={`notifications-${id}`} id={id} revision={settingsRevision} blocked={Boolean(busy || settingsBusy || loading || error)} onBusy={setNotificationBusy} />
     </>}
     {confirmation && <BaselineConfirmation endpoint={confirmation} busy={busy === 'baseline'} onClose={() => { if (!busy) setConfirmation(null); }} onConfirm={() => void run('baseline')} />}
   </>;

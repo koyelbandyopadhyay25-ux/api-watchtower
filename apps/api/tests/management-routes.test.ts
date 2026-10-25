@@ -13,11 +13,26 @@ function fixture(environment: NodeJS.ProcessEnv = { NODE_ENV: 'development', ENA
     schedule: vi.fn(async () => ({ endpointId: id, enabled: false, intervalMinutes: 15, nextRunAt: null })),
     configureSchedule: vi.fn(async (_id: string, enabled: boolean, intervalMinutes: number) => ({ endpointId: id, enabled, intervalMinutes })),
     scheduledHistory: vi.fn(async () => []),
+    notificationSettings: vi.fn(async () => ({ endpointId: id, enabled: false, updatedAt: null })),
+    configureNotifications: vi.fn(async (_id: string, enabled: boolean) => ({ endpointId: id, enabled, updatedAt: new Date() })),
+    notificationHistory: vi.fn(async () => []),
   };
   return { app: createApp({ monitoring: service as unknown as MonitoringService, authentication: testAuthentication, environment }), service };
 }
 
 describe('local development management API', () => {
+  it('uses authenticated ownership and exact notification settings bodies', async () => {
+    const { app, service } = fixture();
+    expect((await request(app).get(`/api/endpoints/${id}/notification-settings`).set('X-Watchtower-Local', '1')).body.enabled).toBe(false);
+    const update = await request(app).put(`/api/endpoints/${id}/notification-settings`).set('X-Watchtower-Local', '1').send({ enabled: true, expectedUpdatedAt: null });
+    expect(update.status).toBe(200); expect(service.configureNotifications).toHaveBeenCalledWith(id, true, null, testUserId);
+    expect((await request(app).get(`/api/endpoints/${id}/notifications`).set('X-Watchtower-Local', '1')).body).toEqual({ events: [] });
+    expect(service.notificationHistory).toHaveBeenCalledWith(id, 50, testUserId);
+  });
+  it.each([{ enabled: true }, { enabled: 'true', expectedUpdatedAt: null }, { enabled: true, expectedUpdatedAt: 'bad' },
+    { enabled: true, expectedUpdatedAt: null, recipient: 'external@example.com' }])('rejects invalid or recipient-injecting notification settings case %#', async body => {
+    expect((await request(fixture().app).put(`/api/endpoints/${id}/notification-settings`).set('X-Watchtower-Local', '1').send(body)).status).toBe(400);
+  });
   it.each([
     { NODE_ENV: 'production', ENABLE_LOCAL_MANAGEMENT: 'true' },
     { NODE_ENV: 'development', ENABLE_LOCAL_MANAGEMENT: 'false' },

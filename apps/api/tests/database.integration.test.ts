@@ -15,6 +15,7 @@ import { inferJsonSchema } from '../src/schema-comparison/compare-json-schema.js
 import type { JsonValue } from '../src/schema-comparison/schema-types.js';
 import { CheckCoordinationError } from '../src/database/check-coordination.js';
 import { authSchemaReady } from './helpers/auth-schema-ready.js';
+import { notificationCleanup } from './helpers/notification-cleanup.js';
 
 // No fallback to DATABASE_URL. Missing infrastructure is explicitly skipped.
 describe.skipIf(!await authSchemaReady())('PostgreSQL persistence (requires approved authentication migration)', () => {
@@ -42,6 +43,7 @@ describe.skipIf(!await authSchemaReady())('PostgreSQL persistence (requires appr
     // Remove only rows created by this suite. Never truncate or reset a database.
     const ids = [...ownedEndpoints];
     await client.$transaction([
+      ...notificationCleanup(client, ids),
       client.checkResult.deleteMany({ where: { endpointId: { in: ids } } }),
       client.endpoint.deleteMany({ where: { id: { in: ids } } }),
       client.user.deleteMany({ where: { id: { in: [...ownedUsers] } } }),

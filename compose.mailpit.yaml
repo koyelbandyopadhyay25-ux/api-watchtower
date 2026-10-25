@@ -1,0 +1,18 @@
+# Optional local capture only; independent of existing PostgreSQL Compose services.
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "0"
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_SMTP_DISABLE_RDNS: "true"
+      MP_ALLOWED_HOSTS: localhost,127.0.0.1
+      MP_SMTP_ALLOWED_RECIPIENTS: '^watchtower\+[0-9a-f-]{36}@example\.test$$'
+    volumes:
+      - mailpit_data:/data
+volumes:
+  mailpit_data:

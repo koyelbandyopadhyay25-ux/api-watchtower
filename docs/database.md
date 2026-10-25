@@ -1,5 +1,7 @@
 # Local database and persistence (Phase 3A)
 
+Phase 6B adds five incident/notification/outbox tables, with no backfill or old-table column changes. The explicitly approved migration is already applied to both local databases. Do not rerun initialization or migrations. See [notification architecture](notifications.md) and [verification and preservation evidence](phase6b-final-verification.md).
+
 **Phase 6A verified:** the explicitly approved [authentication migration](authentication.md) is applied to both local databases, test first after all 27 integration tests passed. The nullable owner column and User/Session tables preserve original monitoring rows; all nine legacy endpoints remain unclaimed. Read-only `npm run db:auth:plan` verifies both targets. Do not rerun initial preparation or migration application.
 
 ## Current verification status

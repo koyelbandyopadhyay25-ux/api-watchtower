@@ -47,17 +47,19 @@ test('real cookie sessions, two-user isolation, legacy refusal, CSRF, logout and
     const endpoint = await registration.json(); const route = `/api/endpoints/${endpoint.id}`;
     expect((await context.request.post(route + '/checks', { headers: writeA, data: {} })).status()).toBe(201);
     const previous = await (await context.request.get(route + '/checks', { headers })).json();
-    for (const suffix of ['', '/checks', '/schedule', '/scheduled-checks']) {
+    for (const suffix of ['', '/checks', '/schedule', '/scheduled-checks', '/notification-settings', '/notifications']) {
       expect((await otherContext.request.get('http://localhost:5173' + route + suffix, { headers })).status()).toBe(404);
     }
     expect((await otherContext.request.post('http://localhost:5173' + route + '/checks', { headers: writeB, data: {} })).status()).toBe(404);
     expect((await otherContext.request.put('http://localhost:5173' + route + '/baseline', { headers: writeB, data: { accept: true, expectedUpdatedAt: endpoint.updatedAt } })).status()).toBe(404);
     expect((await otherContext.request.put('http://localhost:5173' + route + '/schedule', { headers: writeB, data: { enabled: true, intervalMinutes: 5 } })).status()).toBe(404);
+    expect((await otherContext.request.put('http://localhost:5173' + route + '/notification-settings', { headers: writeB, data: { enabled: true, expectedUpdatedAt: null } })).status()).toBe(404);
     expect((await (await otherContext.request.get('http://localhost:5173/api/endpoints', { headers })).json()).endpoints.some((row: { id: string }) => row.id === endpoint.id)).toBe(false);
     for (const token of [undefined, 'x'.repeat(43), sessionB.csrfToken]) {
       const attemptHeaders = token ? { ...headers, 'X-CSRF-Token': token } : headers;
       expect((await context.request.post(route + '/checks', { headers: attemptHeaders, data: {} })).status()).toBe(403);
       expect((await context.request.put(route + '/schedule', { headers: attemptHeaders, data: { enabled: true, intervalMinutes: 5 } })).status()).toBe(403);
+      expect((await context.request.put(route + '/notification-settings', { headers: attemptHeaders, data: { enabled: true, expectedUpdatedAt: null } })).status()).toBe(403);
     }
     expect((await (await context.request.get(route + '/checks', { headers })).json()).checks.length).toBe(previous.checks.length);
     expect((await (await context.request.get(route, { headers })).json()).baselineSchema).toBeNull();

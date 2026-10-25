@@ -1,8 +1,10 @@
 # API Watchtower
 
+**Phase 6B verified for local Mailpit:** all 298 backend tests, 56 frontend tests, 39 PostgreSQL tests and four real browser workflows passed with no final failures or skips. The local HTTP cookie configuration was corrected on the API process; secure defaults and security assertions are unchanged. Read [the final results and evidence](docs/phase6b-final-verification.md) and [notification architecture/setup](docs/notifications.md). Both databases are already migrated; do not reinitialize or reapply migrations. No external mail or public deployment is enabled.
+
 **Phase 6A:** authentication and user isolation are implemented. The approved additive migration was applied to test first, passed all 27 database tests and regressions, then applied to development without changing original monitoring data. All nine legacy endpoints remain unclaimed and invisible to registered users. Read [the authentication design and final verification](docs/authentication.md). `npm run db:auth:plan` performs read-only inspection; do not reinitialize either existing database.
 
-A full-stack API monitoring platform under development. Phases 1–6A provide deterministic schema comparison, PostgreSQL persistence, secure local HTTPS checking, a developer dashboard with persisted monitoring controls, an independent worker, and session-based authentication with user isolation. Alerts and public deployment are not implemented.
+A full-stack API monitoring platform under development. Phases 1–6B provide deterministic schema comparison, PostgreSQL persistence, secure local HTTPS checking, a developer dashboard with persisted monitoring controls, independent monitoring/email workers, session-based authentication with user isolation, and opt-in incident notifications captured by local Mailpit. External email delivery and public deployment are not implemented.
 
 ## Structure
 

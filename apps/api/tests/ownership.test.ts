@@ -15,6 +15,7 @@ async function fixture() {
   const other = await auth.service.login({ ...credentials, email: 'other@example.test' });
   const endpoint = { id, ownerId: owner.user.id as string | null, url: 'https://jsonplaceholder.typicode.com/todos/1', baselineSchema: null, updatedAt: new Date('2026-01-01') };
   const repository = {
+    notifications: { observe: vi.fn(async () => {}), resolveForBaseline: vi.fn(async () => {}), preference: vi.fn(async () => null), configure: vi.fn(), history: vi.fn(async () => []) },
     getEndpoint: vi.fn(async (requested: string) => requested === id ? endpoint : null),
     listEndpoints: vi.fn(async (_limit: number, ownerId: string) => endpoint.ownerId === ownerId ? [endpoint] : []),
     createEndpoint: vi.fn(async input => ({ ...endpoint, ...input })),
@@ -34,6 +35,8 @@ describe('ownership at the real authentication/service boundary', () => {
     ['GET', '', undefined], ['GET', '/checks', undefined], ['GET', '/schedule', undefined], ['GET', '/scheduled-checks', undefined],
     ['POST', '/checks', {}], ['PUT', '/baseline', { accept: true, expectedUpdatedAt: '2026-01-01T00:00:00.000Z' }],
     ['PUT', '/schedule', { enabled: true, intervalMinutes: 5 }],
+    ['GET', '/notification-settings', undefined], ['GET', '/notifications', undefined],
+    ['PUT', '/notification-settings', { enabled: true, expectedUpdatedAt: null }],
   ] as const)('hides another user endpoint for %s %s', async (method, suffix, body) => {
     const f = await fixture();
     const agent = request(f.app); const path = `/api/endpoints/${id}${suffix}`;

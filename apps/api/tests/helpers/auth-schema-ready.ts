@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createDatabaseClient } from '../../src/database/database-client.js';
 import { assertDisposableDatabase } from '../../src/database/disposable-database.js';
+import { notificationSchemaReady } from './notification-schema-ready.js';
 
 /** Read-only gate: never run integration writes against a pending schema. */
 export async function authSchemaReady() {
@@ -16,6 +17,7 @@ export async function authSchemaReady() {
     `;
     if (!rows[0]?.applied && rows[0]?.columns === 0) return false;
     if (!rows[0]?.applied || rows[0]?.columns !== 3) throw new Error('Partial authentication schema: stop and inspect migration state.');
-    return true;
+    // Owned monitoring checks now atomically write incident/outbox state.
+    return await notificationSchemaReady();
   } finally { await client.$disconnect(); }
 }

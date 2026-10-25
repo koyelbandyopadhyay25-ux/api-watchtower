@@ -9,6 +9,7 @@ import { createMonitoringWorker, type WorkerEvent } from '../src/worker/monitori
 import { inferJsonSchema } from '../src/schema-comparison/compare-json-schema.js';
 import type { FetchResult } from '../src/monitoring/safe-json-fetcher.js';
 import { authSchemaReady } from './helpers/auth-schema-ready.js';
+import { notificationCleanup } from './helpers/notification-cleanup.js';
 
 async function schemaReady() {
   if (!process.env.TEST_DATABASE_URL) return false;
@@ -51,6 +52,7 @@ describe.skipIf(!ready)('scheduled persistence and cross-process coordination (r
   });
   afterEach(async () => {
     await first.$transaction([
+      ...notificationCleanup(first, [...owned]),
       first.checkResult.deleteMany({ where: { endpointId: { in: [...owned] } } }),
       first.endpoint.deleteMany({ where: { id: { in: [...owned] } } }),
     ]);

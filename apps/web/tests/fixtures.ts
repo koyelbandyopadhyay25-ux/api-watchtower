@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { CheckResult, Endpoint, SchemaChange, MonitoringSchedule, ScheduledRun } from '../src/api/types';
+import type { CheckResult, Endpoint, SchemaChange, MonitoringSchedule, ScheduledRun, NotificationSettings, NotificationEvent } from '../src/api/types';
 
 export const endpointId = '11111111-1111-4111-8111-111111111111';
 export const initialTimestamp = '2026-10-25T10:00:00.000Z';
@@ -34,6 +34,10 @@ export function mockApi(options: { endpoints?: Endpoint[]; checks?: Record<strin
     runs: {} as Record<string, ScheduledRun[]>,
     scheduleError: false,
     historyUnavailable: false,
+    notificationSettings: {} as Record<string, NotificationSettings>,
+    notificationEvents: {} as Record<string, NotificationEvent[]>,
+    notificationError: false,
+    notificationHistoryError: false,
     calls: [] as { path: string; method: string; body: Record<string, unknown> | null }[],
   };
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -51,6 +55,16 @@ export function mockApi(options: { endpoints?: Endpoint[]; checks?: Record<strin
     const id = parts[3]!;
     const saved = state.endpoints.find(item => item.id === id);
     if (!saved) return json({ error: 'endpoint_not_found' }, 404);
+    if (parts[4] === 'notification-settings') {
+      if (state.notificationError) return json({ error: 'database_unavailable' }, 503);
+      const current = state.notificationSettings[id] ?? { endpointId: id, enabled: false, updatedAt: null };
+      if (method === 'PUT') {
+        if (current.updatedAt !== body?.expectedUpdatedAt) return json({ error: 'stale_notification_settings' }, 409);
+        state.notificationSettings[id] = { ...current, enabled: body?.enabled === true, updatedAt: new Date(Date.parse(current.updatedAt ?? initialTimestamp) + 1).toISOString() };
+      }
+      return json(state.notificationSettings[id] ?? current);
+    }
+    if (parts[4] === 'notifications') return state.notificationHistoryError ? json({ error: 'database_unavailable' }, 503) : json({ events: state.notificationEvents[id] ?? [] });
     if (parts[4] === 'schedule') {
       if (state.scheduleError) return json({ error: 'database_unavailable' }, 503);
       const current = state.schedules[id] ?? { endpointId: id, enabled: false, intervalMinutes: 15, nextRunAt: null, lastStartedAt: null, lastFinishedAt: null, lastErrorCode: null, updatedAt: null };

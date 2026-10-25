@@ -1,4 +1,4 @@
-import type { CheckResponse, CheckResult, Endpoint, EndpointRow, MonitoringSchedule, ScheduledRun } from './types';
+import type { CheckResponse, CheckResult, Endpoint, EndpointRow, MonitoringSchedule, ScheduledRun, NotificationSettings, NotificationEvent } from './types';
 
 export const SUPPORTED_URLS = [
   'https://jsonplaceholder.typicode.com/todos/1',
@@ -32,6 +32,7 @@ export function errorMessage(error: unknown): string {
     csrf_invalid: 'The security token is out of date. Reload the page before trying again.',
     authentication_rate_limited: 'Too many authentication attempts. Wait 15 minutes before trying again.',
     authentication_busy: 'Authentication is busy. Try again in a moment.',
+    stale_notification_settings: 'Notification settings changed elsewhere. Refresh and review them before saving again.',
     url_not_allowed: 'This URL is not supported. Choose one of the two public test URLs.',
     endpoint_not_found: 'This endpoint no longer exists. Return to the endpoint list.',
     stale_baseline_acceptance: 'The endpoint changed since this page loaded. Review the refreshed baseline and confirm again.',
@@ -100,6 +101,13 @@ export const authApi = {
 };
 
 export const api = {
+  notificationSettings: async (id: string, signal?: AbortSignal) => {
+    const value = await request<NotificationSettings>(`/endpoints/${encodeURIComponent(id)}/notification-settings`, { signal });
+    if (value.endpointId !== id || typeof value.enabled !== 'boolean' || !(value.updatedAt === null || (typeof value.updatedAt === 'string' && Number.isFinite(Date.parse(value.updatedAt))))) throw new ApiError(200, 'invalid_response');
+    return value;
+  },
+  configureNotifications: (id: string, enabled: boolean, expectedUpdatedAt: string | null) => request<NotificationSettings>(`/endpoints/${encodeURIComponent(id)}/notification-settings`, { method: 'PUT', body: { enabled, expectedUpdatedAt } }),
+  notifications: (id: string, signal?: AbortSignal) => request<{ events: NotificationEvent[] }>(`/endpoints/${encodeURIComponent(id)}/notifications?limit=50`, { signal }),
   schedule: async (id: string, signal?: AbortSignal) => {
     const value = await request<MonitoringSchedule>(`/endpoints/${encodeURIComponent(id)}/schedule`, { signal });
     const times = [value.nextRunAt, value.lastStartedAt, value.lastFinishedAt, value.updatedAt];

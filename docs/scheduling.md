@@ -1,5 +1,7 @@
 # Opt-in monitoring worker (Phase 5A)
 
+Phase 6B adds atomic incident/outbox recording in the same scheduled-check transaction; SMTP runs in a separate dispatcher. Its approved additive migration is applied to both databases. See [notification architecture and safety](notifications.md) and [verification evidence](phase6b-final-verification.md). No existing cadence, baseline, URL or coordination policy was weakened.
+
 **Phase 6A:** user-facing schedule APIs require session authentication, ownership and CSRF on writes. The worker still uses the trusted internal service without browser credentials; logout does not stop opted-in schedules. No worker/SSRF/coordination policy was relaxed. Authentication's approved additive migration is applied to both databases; real worker execution after logout is verified. See [authentication migration and verification](authentication.md).
 
 ## Verified status and migration approval
