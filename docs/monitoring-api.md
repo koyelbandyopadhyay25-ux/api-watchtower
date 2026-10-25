@@ -1,8 +1,12 @@
 # Manual monitoring API (Phase 3B)
 
+**Phase 6A authentication requirement:** all endpoint routes now additionally require a valid cookie session, and state changes require its `X-CSRF-Token`. Owner IDs come only from that session; another user's or an unclaimed UUID returns 404. The original local guard remains mandatory. Existing examples without authentication correctly fail. The additive migration is approved and applied to both local databases; see [auth routes, preservation and verification](authentication.md).
+
+Phase 5B read-only response addition: check-history entries include `scheduledCheck: { scheduledFor: "<UTC ISO timestamp>" }` for scheduled results and `scheduledCheck: null` for manual checks (including explicit baseline captures). This reads the existing relation; no records or schema are changed. Clients must treat absent metadata as unknown rather than guessing provenance. The capture/check POST responses need not include this relation; refresh history after actions.
+
 ## Scope and architecture
 
-Phase 3B adds manual, local backend monitoring. Phase 4 adds a [developer dashboard](dashboard.md) using these same routes and guards. Phase 5A adds a separately enabled [opt-in monitoring worker](scheduling.md), whose additive migration and real persistence/stop/restart behavior are verified. There is no authentication, alert delivery, or deployment configuration. Do not rerun database initialization.
+Phase 3B adds manual, local backend monitoring. Phase 4 adds a [developer dashboard](dashboard.md) using these same routes and guards. Phase 5A adds a separately enabled [opt-in monitoring worker](scheduling.md). Phase 6A adds [authentication and ownership](authentication.md), with all three migrations and real authenticated persistence verified. Alert delivery and public deployment are not implemented. Do not rerun database initialization.
 
 `url-policy.ts` validates the small destination allowlist and public IPv4 addresses. `safe-json-fetcher.ts` handles DNS, HTTPS, deadlines, and bounded JSON reading. `monitoring-service.ts` coordinates the fetch, schema comparison, and repository writes. `management-routes.ts` handles the local REST boundary. The Phase 2 traversal remains the source of inference/comparison behavior: small `inferJsonSchema` and `compareInferredSchemas` adapters serialize/restore its existing internal representation. No response body is retained as a baseline.
 
@@ -20,6 +24,7 @@ Alternatively set them in the terminal that starts the server:
 ```powershell
 $env:NODE_ENV = 'development'
 $env:ENABLE_LOCAL_MANAGEMENT = 'true'
+$env:AUTH_COOKIE_SECURE = 'false' # localhost HTTP development only
 npm run dev:api
 ```
 

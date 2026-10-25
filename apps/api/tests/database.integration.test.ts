@@ -5,18 +5,23 @@ import { createDatabaseClient } from '../src/database/database-client.js';
 import { assertDisposableDatabase } from '../src/database/disposable-database.js';
 import { DatabaseError } from '../src/database/database-errors.js';
 import { createMonitoringRepository, createMonitoringStore } from '../src/database/monitoring-repository.js';
-import request from 'supertest';
+import supertest from 'supertest';
+import { randomBytes } from 'node:crypto';
+import { createAuthRepository } from '../src/auth/auth-repository.js';
+import { createAuthService } from '../src/auth/auth-service.js';
 import { createApp } from '../src/app.js';
 import { createMonitoringService } from '../src/monitoring/monitoring-service.js';
 import { inferJsonSchema } from '../src/schema-comparison/compare-json-schema.js';
 import type { JsonValue } from '../src/schema-comparison/schema-types.js';
 import { CheckCoordinationError } from '../src/database/check-coordination.js';
+import { authSchemaReady } from './helpers/auth-schema-ready.js';
 
 // No fallback to DATABASE_URL. Missing infrastructure is explicitly skipped.
-describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolated test database)', () => {
+describe.skipIf(!await authSchemaReady())('PostgreSQL persistence (requires approved authentication migration)', () => {
   let client: ReturnType<typeof createDatabaseClient>;
   let repository: ReturnType<typeof createMonitoringRepository>;
   const ownedEndpoints: string[] = [];
+  const ownedUsers: string[] = [];
   let initialized = false;
 
   beforeAll(async () => {
@@ -39,8 +44,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolate
     await client.$transaction([
       client.checkResult.deleteMany({ where: { endpointId: { in: ids } } }),
       client.endpoint.deleteMany({ where: { id: { in: ids } } }),
+      client.user.deleteMany({ where: { id: { in: [...ownedUsers] } } }),
     ]);
     ownedEndpoints.length = 0;
+    ownedUsers.length = 0;
   });
 
   afterAll(async () => { if (client) await client.$disconnect(); });
@@ -150,7 +157,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('PostgreSQL persistence (isolate
       ok: true, httpStatus: 200, responseTimeMs: 7,
       value: samples[++requests <= 2 ? 0 : 1]!,
     }));
-    const api = createApp({ monitoring: service, environment: { NODE_ENV: 'development', ENABLE_LOCAL_MANAGEMENT: 'true' } });
+    const authentication = createAuthService(createAuthRepository(client));
+    const credentials = { email: `${randomUUID()}@example.test`, password: randomBytes(24).toString('base64url') };
+    await authentication.register(credentials);
+    const session = await authentication.login(credentials);
+    ownedUsers.push(session.user.id);
+    const api = createApp({ monitoring: service, authentication, environment: { NODE_ENV: 'development', ENABLE_LOCAL_MANAGEMENT: 'true' } });
+    const request = (app: typeof api) => supertest.agent(app).set('Cookie', `watchtower_session=${session.token}`).set('X-CSRF-Token', session.csrfToken);
     const created = await request(api).post('/api/endpoints').set('X-Watchtower-Local', '1')
       .send({ name: 'Workflow integration test', url: 'https://jsonplaceholder.typicode.com/todos/1' });
     expect(created.status).toBe(201);

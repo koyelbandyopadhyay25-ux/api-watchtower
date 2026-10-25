@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { CheckResult, Endpoint, SchemaChange } from '../src/api/types';
+import type { CheckResult, Endpoint, SchemaChange, MonitoringSchedule, ScheduledRun } from '../src/api/types';
 
 export const endpointId = '11111111-1111-4111-8111-111111111111';
 export const initialTimestamp = '2026-10-25T10:00:00.000Z';
@@ -10,7 +10,7 @@ export function endpoint(overrides: Partial<Endpoint> = {}): Endpoint {
 }
 export function check(overrides: Partial<CheckResult> = {}): CheckResult {
   return { id: 'check-1', endpointId, httpStatus: 200, responseTimeMs: 42, outcome: 'success', errorCode: null,
-    checkedAt: nextTimestamp, schemaChanges: [], ...overrides };
+    checkedAt: nextTimestamp, schemaChanges: [], scheduledCheck: null, ...overrides };
 }
 export const changes: SchemaChange[] = [
   { id: 'change-a', checkResultId: 'changed', path: '$.email', changeType: 'added', previousTypes: [], currentTypes: ['string'] },
@@ -30,6 +30,10 @@ export function mockApi(options: { endpoints?: Endpoint[]; checks?: Record<strin
     failedHistory: new Set<string>(),
     nextCheck: check(),
     baselineError: null as string | null,
+    schedules: {} as Record<string, MonitoringSchedule>,
+    runs: {} as Record<string, ScheduledRun[]>,
+    scheduleError: false,
+    historyUnavailable: false,
     calls: [] as { path: string; method: string; body: Record<string, unknown> | null }[],
   };
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -47,6 +51,13 @@ export function mockApi(options: { endpoints?: Endpoint[]; checks?: Record<strin
     const id = parts[3]!;
     const saved = state.endpoints.find(item => item.id === id);
     if (!saved) return json({ error: 'endpoint_not_found' }, 404);
+    if (parts[4] === 'schedule') {
+      if (state.scheduleError) return json({ error: 'database_unavailable' }, 503);
+      const current = state.schedules[id] ?? { endpointId: id, enabled: false, intervalMinutes: 15, nextRunAt: null, lastStartedAt: null, lastFinishedAt: null, lastErrorCode: null, updatedAt: null };
+      if (method === 'PUT') state.schedules[id] = { ...current, ...body, updatedAt: nextTimestamp } as MonitoringSchedule;
+      return json(state.schedules[id] ?? current);
+    }
+    if (parts[4] === 'scheduled-checks') return state.historyUnavailable ? json({ error: 'database_unavailable' }, 503) : json({ runs: state.runs[id] ?? [] });
     if (parts[4] === 'checks') {
       if (method === 'GET') return state.failedHistory.has(id) ? json({ error: 'database_unavailable' }, 503) : json({ checks: (state.checks[id] ?? []).slice(0, Number(url.searchParams.get('limit') ?? 100)) });
       const recorded = { ...state.nextCheck, endpointId: id };

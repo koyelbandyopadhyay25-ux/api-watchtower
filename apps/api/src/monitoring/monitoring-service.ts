@@ -10,15 +10,17 @@ export class MonitoringError extends Error {
   constructor(readonly status: number, readonly code: string) { super(code); }
 }
 
+// HTTP callers MUST pass the authenticated owner ID. Omission is reserved for
+// trusted internal worker/repository workflows, never a request-controlled flag.
 export function createMonitoringService(
   repository: ReturnType<typeof createMonitoringRepository>,
   fetchJson = createSafeJsonFetcher(),
 ) {
   const activeEndpoints = new Set<string>();
 
-  async function requireEndpoint(id: string, store: MonitoringStore = repository) {
+  async function requireEndpoint(id: string, store: MonitoringStore = repository, ownerId?: string) {
     const endpoint = await store.getEndpoint(id);
-    if (!endpoint) throw new MonitoringError(404, 'endpoint_not_found');
+    if (!endpoint || (ownerId !== undefined && endpoint.ownerId !== ownerId)) throw new MonitoringError(404, 'endpoint_not_found');
     return endpoint;
   }
 
@@ -30,8 +32,8 @@ export function createMonitoringService(
     finally { activeEndpoints.delete(id); }
   }
 
-  async function executeCheck(store: MonitoringStore, id: string, signal: AbortSignal, expectedUpdatedAt?: string) {
-      const endpoint = await requireEndpoint(id, store);
+  async function executeCheck(store: MonitoringStore, id: string, signal: AbortSignal, expectedUpdatedAt?: string, ownerId?: string) {
+      const endpoint = await requireEndpoint(id, store, ownerId);
       if (expectedUpdatedAt !== undefined && endpoint.updatedAt.toISOString() !== expectedUpdatedAt) {
         throw new MonitoringError(409, 'stale_baseline_acceptance');
       }
@@ -71,36 +73,36 @@ export function createMonitoringService(
       return { result: { check, comparison }, error: null };
   }
 
-  async function runCheck(id: string, expectedUpdatedAt?: string) {
-    const attempt = await exclusively(id, (store, signal) => executeCheck(store, id, signal, expectedUpdatedAt));
+  async function runCheck(id: string, expectedUpdatedAt?: string, ownerId?: string) {
+    const attempt = await exclusively(id, (store, signal) => executeCheck(store, id, signal, expectedUpdatedAt, ownerId));
     if (attempt.error) throw attempt.error;
     return attempt.result;
   }
 
   return {
-    async register(input: { name: string; url: string }) {
+    async register(input: { name: string; url: string }, ownerId?: string) {
       const url = validateTarget(input.url).href;
-      return repository.createEndpoint({ name: input.name, url });
+      return repository.createEndpoint({ name: input.name, url, ...(ownerId ? { ownerId } : {}) });
     },
-    list: (limit: number) => repository.listEndpoints(limit),
-    get: (id: string) => requireEndpoint(id),
-    check: (id: string) => runCheck(id),
-    acceptBaseline: (id: string, expectedUpdatedAt: string) => runCheck(id, expectedUpdatedAt),
-    async history(id: string, limit: number) {
-      await requireEndpoint(id);
+    list: (limit: number, ownerId?: string) => repository.listEndpoints(limit, ownerId),
+    get: (id: string, ownerId?: string) => requireEndpoint(id, repository, ownerId),
+    check: (id: string, ownerId?: string) => runCheck(id, undefined, ownerId),
+    acceptBaseline: (id: string, expectedUpdatedAt: string, ownerId?: string) => runCheck(id, expectedUpdatedAt, ownerId),
+    async history(id: string, limit: number, ownerId?: string) {
+      await requireEndpoint(id, repository, ownerId);
       return repository.listCheckResults(id, limit);
     },
 
-    async schedule(id: string) {
-      await requireEndpoint(id);
+    async schedule(id: string, ownerId?: string) {
+      await requireEndpoint(id, repository, ownerId);
       return await repository.getSchedule(id) ?? { endpointId: id, enabled: false, intervalMinutes: 15,
         nextRunAt: null, lastStartedAt: null, lastFinishedAt: null, lastErrorCode: null, updatedAt: null };
     },
 
-    async configureSchedule(id: string, enabled: boolean, intervalMinutes: number) {
+    async configureSchedule(id: string, enabled: boolean, intervalMinutes: number, ownerId?: string) {
       if (!isMonitoringInterval(intervalMinutes)) throw new MonitoringError(400, 'unsupported_monitoring_interval');
       return repository.runExclusive(id, async store => {
-        const endpoint = await requireEndpoint(id, store);
+        const endpoint = await requireEndpoint(id, store, ownerId);
         if (enabled) validateTarget(endpoint.url);
         const current = await store.getSchedule(id);
         const now = await store.databaseTime();
@@ -127,8 +129,8 @@ export function createMonitoringService(
       });
     },
 
-    async scheduledHistory(id: string, limit: number) {
-      await requireEndpoint(id);
+    async scheduledHistory(id: string, limit: number, ownerId?: string) {
+      await requireEndpoint(id, repository, ownerId);
       return repository.scheduledHistory(id, limit);
     },
   };

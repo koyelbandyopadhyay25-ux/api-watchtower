@@ -1,5 +1,7 @@
 # Opt-in monitoring worker (Phase 5A)
 
+**Phase 6A:** user-facing schedule APIs require session authentication, ownership and CSRF on writes. The worker still uses the trusted internal service without browser credentials; logout does not stop opted-in schedules. No worker/SSRF/coordination policy was relaxed. Authentication's approved additive migration is applied to both databases; real worker execution after logout is verified. See [authentication migration and verification](authentication.md).
+
 ## Verified status and migration approval
 
 Phase 5A is verified. Migration `20261025121417_add_endpoint_scheduling` was explicitly approved, applied to `watchtower_test`, and passed all 11 scheduling plus 9 existing database tests before application to `watchtower_dev`. Subsequent timezone regressions bring the final database suite to 22 passing tests. Both databases have a completed migration with checksum `480971c01b389c9159a758432b8b652176566ce14de4141ed189d6b4b90a66fe`.
@@ -99,7 +101,7 @@ Settings responses contain `endpointId`, `enabled`, `intervalMinutes`, `nextRunA
 
 An active check/configuration owns the endpoint lock: conflicting manual/configuration requests receive 409 and can be retried after completion. A disable request returning 409 has **not** disabled anything. Changing settings does not cancel an already admitted check; wait for it to finish and retry. Global execution capacity returns 429 for manual checks. Unsupported intervals/URLs and extra fields are rejected.
 
-Existing `GET /api/endpoints/:id/checks` includes all actual checks, manual and scheduled, so the unchanged dashboard history renders scheduled outcomes too. Phase 5A adds no schedule controls/redesign; only the old “nothing runs on a schedule” copy was corrected. Refresh loads new saved records. Schedules can be configured using the local interface above.
+Existing `GET /api/endpoints/:id/checks` includes all actual checks, manual and scheduled. Phase 5B adds `scheduledCheck` relation metadata to this read response and persisted schedule controls to endpoint detail. The dashboard distinguishes scheduled/manual provenance, requires confirmation to enable, and does not invent worker health. See [dashboard controls and live browser verification](dashboard.md#persisted-monitoring-controls-phase-5b). Refresh loads new saved records; the independent worker remains required.
 
 ## Real verification without a browser
 

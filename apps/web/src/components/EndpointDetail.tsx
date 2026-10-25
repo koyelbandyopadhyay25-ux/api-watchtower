@@ -5,6 +5,7 @@ import { useEndpointDetail } from '../hooks/useEndpointDetail';
 import { BaselineConfirmation } from './BaselineConfirmation';
 import { CheckHistory, SchemaChanges } from './CheckHistory';
 import { Notice, StatusBadge, Timestamp } from './common';
+import { MonitoringSettings } from './MonitoringSettings';
 
 export function EndpointDetail({ id }: { id: string }) {
   const { data, loading, error, refresh } = useEndpointDetail(id);
@@ -12,6 +13,9 @@ export function EndpointDetail({ id }: { id: string }) {
   const [confirmation, setConfirmation] = useState<Endpoint | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: 'success' | 'warning' | 'error' } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsRevision, setSettingsRevision] = useState(0);
+  function refreshAll() { refresh(); setSettingsRevision(value => value + 1); }
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -32,7 +36,7 @@ export function EndpointDetail({ id }: { id: string }) {
     } catch (failure) {
       if (mounted.current) setNotice({ tone: 'error', text: errorMessage(failure) });
     } finally {
-      if (mounted.current) { setBusy(null); setConfirmation(null); refresh(); }
+      if (mounted.current) { setBusy(null); setConfirmation(null); refreshAll(); }
     }
   }
 
@@ -40,12 +44,12 @@ export function EndpointDetail({ id }: { id: string }) {
   const latest = data?.checks[0] ?? null;
   const selected = data?.checks.find(check => check.id === selectedId) ?? latest;
   const supported = endpoint ? supportedUrl(endpoint.url) !== null : false;
-  const disabled = Boolean(busy || loading || error || !supported);
+  const disabled = Boolean(busy || settingsBusy || loading || error || !supported);
 
   return <>
     <a className="back-link" href="#endpoints">← All endpoints</a>
     <div className="page-heading"><div><p className="eyebrow">Endpoint detail</p><h1>{endpoint?.name ?? 'Endpoint'}</h1>{endpoint && <p className="mono endpoint-address">{endpoint.url}</p>}</div>
-      <div className="actions"><button className="button" disabled={Boolean(loading || busy)} onClick={refresh}>{loading ? 'Loading…' : 'Refresh detail'}</button>
+      <div className="actions"><button className="button" disabled={Boolean(loading || busy || settingsBusy)} onClick={refreshAll}>{loading ? 'Loading…' : 'Refresh detail'}</button>
         <button className="button button-primary" disabled={disabled} onClick={() => void run('check')}>{busy === 'check' ? 'Checking…' : 'Run check'}</button></div>
     </div>
     {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
@@ -60,6 +64,7 @@ export function EndpointDetail({ id }: { id: string }) {
           <div><dt>Checked at (UTC)</dt><dd><Timestamp value={latest?.checkedAt} /></dd></div></dl>
         {latest?.errorCode && <div className="panel-footer">Error category: <code>{latest.errorCode}</code></div>}
       </section>
+      <MonitoringSettings key={id} id={id} revision={settingsRevision} blocked={Boolean(busy || loading || error)} supported={supported} onSaved={refresh} onBusy={setSettingsBusy} />
       <section className="panel" aria-labelledby="baseline-heading">
         <div className="panel-heading"><h2 id="baseline-heading">Accepted baseline</h2><span className="small muted">{endpoint!.baselineSchema === null ? 'Not accepted' : 'Saved structure'}</span></div>
         <div className="baseline-content"><div><h3>{endpoint!.baselineSchema === null ? 'No baseline accepted' : 'Baseline accepted'}</h3>

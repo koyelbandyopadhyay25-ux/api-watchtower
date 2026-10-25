@@ -7,7 +7,7 @@ export function CheckHistory({ checks, selectedId, onSelect }: { checks: CheckRe
     {checks.length === 0 ? <div className="empty-state"><h3>No checks recorded</h3><p>Run a manual check to save its actual HTTP result and timing.</p></div>
       : <div className="table-scroll" role="region" aria-label="History table. Scroll horizontally to view all columns." tabIndex={0}><table className="data-table history-table"><caption className="sr-only">Persisted checks, newest first</caption><thead><tr><th>Checked at (UTC)</th><th>Result</th><th>HTTP</th><th className="numeric">Latency</th><th>Error category</th><th className="numeric">Changes</th><th><span className="sr-only">Inspect check</span></th></tr></thead><tbody>
         {checks.map(check => <tr key={check.id} className={selectedId === check.id ? 'selected-row' : ''}>
-          <td><Timestamp value={check.checkedAt} /></td><td><StatusBadge check={check} /></td>
+          <td><Timestamp value={check.checkedAt} /><div className="small muted">{check.scheduledCheck ? 'Scheduled' : check.scheduledCheck === null ? 'Manual' : 'Source unavailable'}</div></td><td><StatusBadge check={check} /></td>
           <td className="mono">{check.httpStatus ?? '—'}</td><td className="mono numeric">{check.responseTimeMs !== null ? `${check.responseTimeMs} ms` : '—'}</td>
           <td className="mono muted">{check.errorCode ?? '—'}</td><td className="numeric mono">{check.schemaChanges.length}</td>
           <td><button className="text-button nowrap" aria-pressed={selectedId === check.id} aria-label={`View changes for check ${check.id}`} onClick={() => onSelect(check.id)}>{selectedId === check.id ? 'Selected' : 'View changes'}</button></td>

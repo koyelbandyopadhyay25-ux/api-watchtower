@@ -31,6 +31,23 @@ export interface CheckResult {
   errorCode: string | null;
   checkedAt: string;
   schemaChanges: SchemaChange[];
+  scheduledCheck?: { scheduledFor: string } | null;
+}
+export interface MonitoringSchedule {
+  endpointId: string;
+  enabled: boolean;
+  intervalMinutes: 5 | 15 | 30 | 60;
+  nextRunAt: string | null;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastErrorCode: string | null;
+  updatedAt: string | null;
+}
+export interface ScheduledRun {
+  checkResultId: string;
+  endpointId: string;
+  scheduledFor: string;
+  checkResult: CheckResult;
 }
 export interface CheckResponse {
   check: CheckResult;

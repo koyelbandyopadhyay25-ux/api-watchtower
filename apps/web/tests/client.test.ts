@@ -3,11 +3,15 @@ import { api, loadEndpointRows, supportedUrl } from '../src/api/client';
 import { endpoint, endpointId, json } from './fixtures';
 
 describe('local API client', () => {
-  it('uses only the relative Vite proxy, required header, and no credentials', async () => {
+  it('rejects incomplete scheduling information instead of inventing disabled defaults', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ endpointId, enabled: false, intervalMinutes: 15 })));
+    await expect(api.schedule(endpointId)).rejects.toMatchObject({ code: 'invalid_response' });
+  });
+  it('uses only the relative Vite proxy, required header, and same-origin cookies', async () => {
     const fetch = vi.fn(async () => json(endpoint()));
     vi.stubGlobal('fetch', fetch);
     await api.register('Todo', 'https://jsonplaceholder.typicode.com/todos/1');
-    expect(fetch).toHaveBeenCalledWith('/api/endpoints', expect.objectContaining({ method: 'POST', mode: 'same-origin', credentials: 'omit', redirect: 'error', cache: 'no-store',
+    expect(fetch).toHaveBeenCalledWith('/api/endpoints', expect.objectContaining({ method: 'POST', mode: 'same-origin', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
       headers: { 'X-Watchtower-Local': '1', 'Content-Type': 'application/json' } }));
   });
 

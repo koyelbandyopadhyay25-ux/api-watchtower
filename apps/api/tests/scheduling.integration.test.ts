@@ -8,6 +8,7 @@ import { createMonitoringService } from '../src/monitoring/monitoring-service.js
 import { createMonitoringWorker, type WorkerEvent } from '../src/worker/monitoring-worker.js';
 import { inferJsonSchema } from '../src/schema-comparison/compare-json-schema.js';
 import type { FetchResult } from '../src/monitoring/safe-json-fetcher.js';
+import { authSchemaReady } from './helpers/auth-schema-ready.js';
 
 async function schemaReady() {
   if (!process.env.TEST_DATABASE_URL) return false;
@@ -26,7 +27,7 @@ async function schemaReady() {
   } finally { await client.$disconnect(); }
 }
 
-const ready = await schemaReady();
+const ready = await authSchemaReady() && await schemaReady();
 const success: FetchResult = { ok: true, value: { id: 1 }, httpStatus: 200, responseTimeMs: 8 };
 function deferred() {
   let resolve!: () => void;
@@ -86,6 +87,9 @@ describe.skipIf(!ready)('scheduled persistence and cross-process coordination (r
     const runs = await otherRepository.scheduledHistory(saved.id);
     expect(runs).toHaveLength(1);
     expect(runs[0]?.checkResult.id).toBe(checked?.check.id);
+    expect((await otherRepository.listCheckResults(saved.id))[0]?.scheduledCheck?.scheduledFor).toEqual(runs[0]?.scheduledFor);
+    await service.check(saved.id);
+    expect((await otherRepository.listCheckResults(saved.id))[0]?.scheduledCheck).toBeNull();
     expect(await service.checkScheduled(saved.id)).toBeNull();
   });
 

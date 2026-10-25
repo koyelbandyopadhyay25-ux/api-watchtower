@@ -95,6 +95,21 @@ nav a.nav-active { background: #e2e5da; color: #303a2c; font-weight: 600; }
 .schema-preview summary { cursor: pointer; font-size: 12px; color: #526347; width: fit-content; padding: 4px 0; }
 .schema-preview pre { margin: 12px 0 0; background: #f4f6ee; border: 1px solid #e1e6d7; border-radius: 3px; padding: 16px; max-height: 280px; overflow: auto; }
 .history-table { min-width: 870px; }
+.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.auth-container { width: min(100%, 430px); }
+.auth-form { padding: 20px; }
+.auth-form > label { display: block; margin: 16px 0 6px; font-size: 12px; }
+.auth-form > input { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #c8d0bd; border-radius: 3px; background: #fff; }
+.auth-form .notice { margin-top: 12px; }
+.auth-email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .topbar { flex-wrap: wrap; gap: 8px; padding-top: 8px; padding-bottom: 8px; } .auth-email { max-width: 110px; } }
+.monitoring-form { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 16px 0; }
+.monitoring-checkbox { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.monitoring-frequency { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.monitoring-frequency select { padding: 7px; border: 1px solid #c8d0bd; border-radius: 3px; background: #fff; color: inherit; }
+.schedule-summary { display: flex; flex-wrap: wrap; gap: 16px 28px; margin: 16px 0 0; font-size: 12px; }
+.schedule-summary dt { color: #686e62; font-size: 11px; margin-bottom: 6px; }
+.schedule-summary dd { margin: 0; }
 .selected-row { background: #f3f6ee; }
 .changes-table { min-width: 570px; }
 .field-path { overflow-wrap: anywhere; max-width: 400px; }

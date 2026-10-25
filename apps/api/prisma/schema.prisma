@@ -36,6 +36,9 @@ enum SchemaChangeType {
 
 model Endpoint {
   id             String        @id @default(uuid()) @db.Uuid
+  // NULL is preserved legacy data, inaccessible through user-facing routes.
+  ownerId        String?       @db.Uuid
+  owner          User?         @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   name           String        @db.VarChar(100)
   url            String        @db.VarChar(2048)
   baselineSchema Json?         @db.JsonB
@@ -44,6 +47,28 @@ model Endpoint {
   checks         CheckResult[]
   schedule       EndpointSchedule?
   scheduledChecks ScheduledCheck[]
+  @@index([ownerId, createdAt])
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique @db.VarChar(254)
+  passwordHash String     @db.VarChar(255)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  sessions     Session[]
+  endpoints    Endpoint[]
+}
+
+model Session {
+  // Only a SHA-256 digest is stored. The random bearer identifier stays in its cookie.
+  tokenHash String   @id @db.Char(64)
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken String   @db.Char(43)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model CheckResult {

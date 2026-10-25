@@ -225,11 +225,11 @@ describe('explicit baseline acceptance', () => {
     showDetail();
     await screen.findByText('View saved schema');
     await user.click(screen.getByRole('button', { name: 'Replace baseline' }));
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ }));
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(state.calls.filter(call => call.method === 'PUT')).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Replace baseline' }));
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ })).not.toBeChecked();
   });
 
   it('refreshes stale acceptance, never auto-retries, and requires a new confirmation', async () => {
@@ -239,15 +239,15 @@ describe('explicit baseline acceptance', () => {
     showDetail();
     await screen.findByText('No checks recorded');
     await user.click(screen.getByRole('button', { name: 'Capture baseline' }));
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ }));
     await user.click(screen.getByRole('button', { name: 'Accept baseline' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Review the refreshed baseline and confirm again');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(state.calls.filter(call => call.method === 'PUT')).toHaveLength(1);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Capture baseline' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Capture baseline' }));
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
-    await user.click(screen.getByRole('checkbox'));
+    expect(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ })).not.toBeChecked();
+    await user.click(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ }));
     await user.click(screen.getByRole('button', { name: 'Accept baseline' }));
     await screen.findByText('View saved schema');
     expect(state.calls.filter(call => call.method === 'PUT').map(call => call.body?.expectedUpdatedAt)).toEqual([initialTimestamp, nextTimestamp]);
@@ -260,7 +260,7 @@ describe('explicit baseline acceptance', () => {
     showDetail();
     await screen.findByText('No checks recorded');
     await user.click(screen.getByRole('button', { name: 'Capture baseline' }));
-    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('checkbox', { name: /I want to accept|I understand this replaces/ }));
     await user.click(screen.getByRole('button', { name: 'Accept baseline' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('The baseline was not changed');
     expect(await screen.findByText('Comparison unavailable for this check')).toBeInTheDocument();

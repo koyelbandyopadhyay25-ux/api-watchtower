@@ -22,6 +22,8 @@
     "db:migrate": "npm run db:migrate -w @watchtower/api",
     "db:prepare-test": "npm run db:prepare-test -w @watchtower/api",
     "db:verify": "npm run db:verify -w @watchtower/api",
+    "db:auth:plan": "npm run db:auth:plan -w @watchtower/api",
+    "db:auth:verify": "npm run db:auth:verify -w @watchtower/api",
     "db:schedule:plan": "npm run db:schedule:plan -w @watchtower/api --",
     "db:schedule:apply": "npm run db:schedule:apply -w @watchtower/api --"
   },

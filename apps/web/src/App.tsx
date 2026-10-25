@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { AuthContext } from './components/Authentication';
 import { SUPPORTED_URLS } from './api/client';
 import type { Endpoint } from './api/types';
 import { AddEndpoint } from './components/AddEndpoint';
@@ -25,11 +26,15 @@ function LocalSetup() {
     <section className="panel"><div className="panel-heading"><h2>Supported public test endpoints</h2></div><div className="panel-content readable">
       <ul className="url-list">{SUPPORTED_URLS.map(url => <li key={url}><code>{url}</code></li>)}</ul>
       <p>Only these exact URLs are supported. Checks use HTTPS on port 443, refuse redirects, and enforce destination, time, size, and concurrency limits.</p>
-      <p>Baseline capture is always manual. Scheduled checks require explicit endpoint opt-in and a separate worker process. This local tool has no authentication; keep it bound to localhost.</p>
+      <p>Baseline capture is always manual. Scheduled checks require explicit endpoint opt-in and a separate worker process. Accounts isolate monitoring data; the application still requires localhost and is not approved for public deployment.</p>
+      <p>In a separate PowerShell terminal, start the worker explicitly:</p>
+      <pre className="command-block">{"$env:NODE_ENV = 'development'\n$env:ENABLE_SCHEDULER_WORKER = 'true'\nnpm run dev:worker"}</pre>
+      <p>Configure each endpoint under Monitoring settings. Stop the worker with Ctrl+C; saved opt-ins remain, but checks require an active worker.</p>
     </div></section></>;
 }
 
 export function App() {
+  const authentication = useContext(AuthContext);
   const [view, setView] = useState(readView);
   const [adding, setAdding] = useState(false);
   const [registered, setRegistered] = useState<Endpoint | null>(null);
@@ -49,7 +54,7 @@ export function App() {
         <a href="#setup" className={view.kind === 'setup' ? 'nav-active' : ''} aria-current={view.kind === 'setup' ? 'page' : undefined}>Local setup</a>
       </nav><div className="sidebar-footer"><span className="sidebar-label">LOCAL WORKSPACE</span><p>Checks persist locally.<br />Schedules require a worker.</p></div>
     </aside>
-    <div className="workspace-body"><header className="topbar"><span>Workspace <span className="breadcrumb-slash">/</span> {view.kind === 'setup' ? 'Local setup' : 'Endpoints'}</span><span className="environment-label">Local development</span></header>
+    <div className="workspace-body"><header className="topbar"><span>Workspace <span className="breadcrumb-slash">/</span> {view.kind === 'setup' ? 'Local setup' : 'Endpoints'}</span><div className="actions">{authentication && <><span className="small auth-email">{authentication.email}</span><button className="text-button" disabled={authentication.busy} onClick={authentication.logout}>{authentication.busy ? 'Signing out…' : 'Sign out'}</button></>}<span className="environment-label">Local development</span></div></header>
       <main id="main-content" className="main-content" ref={main} tabIndex={-1}>
         {view.kind === 'list' && <EndpointList onAdd={() => setAdding(true)} registered={registered} registrationRevision={registrationRevision} />}
         {view.kind === 'detail' && <EndpointDetail key={view.id} id={view.id} />}

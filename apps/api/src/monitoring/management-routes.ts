@@ -5,12 +5,14 @@ import { MonitoringError, type MonitoringService } from './monitoring-service.js
 import { UrlPolicyError } from './url-policy.js';
 import { CheckCoordinationError } from '../database/check-coordination.js';
 import { isMonitoringInterval } from '../scheduling/schedule-policy.js';
+import { AuthError, type AuthService } from '../auth/auth-service.js';
+import { authRoutes, requireAuthentication } from '../auth/auth-routes.js';
 
 export function localManagementEnabled(environment: NodeJS.ProcessEnv): boolean {
   return environment.NODE_ENV === 'development' && environment.ENABLE_LOCAL_MANAGEMENT === 'true';
 }
 
-export function managementRoutes(service: MonitoringService, apiPort = '3001') {
+export function managementRoutes(service: MonitoringService, apiPort = '3001', authentication?: AuthService, environment: NodeJS.ProcessEnv = {}) {
   const router = express.Router();
   router.use((request, response, next) => {
     const peer = request.socket.remoteAddress;
@@ -40,6 +42,8 @@ export function managementRoutes(service: MonitoringService, apiPort = '3001') {
     }
     next();
   });
+  if (authentication) router.use('/auth', authRoutes(authentication, environment));
+  router.use('/endpoints', requireAuthentication(authentication));
   router.param('id', (request, _response, next, id: string) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       next(new MonitoringError(400, 'invalid_endpoint_id'));
@@ -69,18 +73,18 @@ export function managementRoutes(service: MonitoringService, apiPort = '3001') {
     if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 100 || typeof input.url !== 'string') {
       throw new MonitoringError(400, 'name_and_url_required');
     }
-    response.status(201).json(await service.register({ name: input.name, url: input.url }));
+    response.status(201).json(await service.register({ name: input.name, url: input.url }, response.locals.authentication.user.id));
   });
   router.get('/endpoints', async (request, response) => {
-    response.json({ endpoints: await service.list(limit(request.query.limit)) });
+    response.json({ endpoints: await service.list(limit(request.query.limit), response.locals.authentication.user.id) });
   });
-  router.get('/endpoints/:id', async (request, response) => { response.json(await service.get(request.params.id!)); });
+  router.get('/endpoints/:id', async (request, response) => { response.json(await service.get(request.params.id!, response.locals.authentication.user.id)); });
   router.post('/endpoints/:id/checks', async (request, response) => {
     body(request.body, []);
-    response.status(201).json(await service.check(request.params.id!));
+    response.status(201).json(await service.check(request.params.id!, response.locals.authentication.user.id));
   });
   router.get('/endpoints/:id/checks', async (request, response) => {
-    response.json({ checks: await service.history(request.params.id!, limit(request.query.limit)) });
+    response.json({ checks: await service.history(request.params.id!, limit(request.query.limit), response.locals.authentication.user.id) });
   });
   router.put('/endpoints/:id/baseline', async (request, response) => {
     const input = body(request.body, ['accept', 'expectedUpdatedAt']);
@@ -88,25 +92,26 @@ export function managementRoutes(service: MonitoringService, apiPort = '3001') {
         !Number.isFinite(Date.parse(input.expectedUpdatedAt)) || new Date(input.expectedUpdatedAt).toISOString() !== input.expectedUpdatedAt) {
       throw new MonitoringError(400, 'explicit_acceptance_and_updated_at_required');
     }
-    response.json(await service.acceptBaseline(request.params.id!, input.expectedUpdatedAt));
+    response.json(await service.acceptBaseline(request.params.id!, input.expectedUpdatedAt, response.locals.authentication.user.id));
   });
 
   router.get('/endpoints/:id/schedule', async (request, response) => {
-    response.json(await service.schedule(request.params.id!));
+    response.json(await service.schedule(request.params.id!, response.locals.authentication.user.id));
   });
   router.put('/endpoints/:id/schedule', async (request, response) => {
     const input = body(request.body, ['enabled', 'intervalMinutes']);
     if (typeof input.enabled !== 'boolean' || !isMonitoringInterval(input.intervalMinutes)) {
       throw new MonitoringError(400, 'enabled_and_supported_interval_required');
     }
-    response.json(await service.configureSchedule(request.params.id!, input.enabled, input.intervalMinutes));
+    response.json(await service.configureSchedule(request.params.id!, input.enabled, input.intervalMinutes, response.locals.authentication.user.id));
   });
   router.get('/endpoints/:id/scheduled-checks', async (request, response) => {
-    response.json({ runs: await service.scheduledHistory(request.params.id!, limit(request.query.limit)) });
+    response.json({ runs: await service.scheduledHistory(request.params.id!, limit(request.query.limit), response.locals.authentication.user.id) });
   });
 
   const handleError: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
-    if (error instanceof MonitoringError) response.status(error.status).json({ error: error.code });
+    if (error instanceof AuthError) response.status(error.status).json({ error: error.code });
+    else if (error instanceof MonitoringError) response.status(error.status).json({ error: error.code });
     else if (error instanceof CheckCoordinationError) response.status(error.reason === 'capacity' ? 429 : 409)
       .json({ error: error.reason === 'capacity' ? 'check_capacity_reached' : 'check_already_running' });
     else if (error instanceof UrlPolicyError) response.status(400).json({ error: 'url_not_allowed' });

@@ -1,5 +1,7 @@
 # Local database and persistence (Phase 3A)
 
+**Phase 6A verified:** the explicitly approved [authentication migration](authentication.md) is applied to both local databases, test first after all 27 integration tests passed. The nullable owner column and User/Session tables preserve original monitoring rows; all nine legacy endpoints remain unclaimed. Read-only `npm run db:auth:plan` verifies both targets. Do not rerun initial preparation or migration application.
+
 ## Current verification status
 
 Local PostgreSQL connectivity has been verified at `127.0.0.1:5432`. Both databases have completed migrations `20261025094835_init` and `20261025121417_add_endpoint_scheduling`. The additive scheduling migration was explicitly approved, applied to test first, tested, then applied to development. The original 3 development endpoints and 9 checks were verified unchanged by per-row content hashes. See [the migration and worker verification record](scheduling.md). Do not prepare/reset either existing database. The optional Docker Compose configuration has not been exercised.
@@ -14,7 +16,7 @@ Endpoint deletion is restricted while checks exist, protecting history from acci
 
 The repository supports creating/retrieving endpoints, explicitly setting/clearing baselines, atomically recording checks with changes, and retrieving bounded history. It does not fetch URLs or schedule work. Connection pools are owned by callers; always disconnect in `finally`. Safe `DatabaseError` codes are `not_found`, `conflict`, `unavailable`, and `operation_failed`; raw driver exceptions are not propagated or logged. Absence from `getEndpoint`/`getCheckResult` returns null.
 
-No response-body or request-header column exists. Errors use a fixed enum rather than free-text messages. URLs with embedded credentials, query strings, or fragments are rejected. Avoid secrets or personal data in endpoint names, URL paths, or JSON property names: structural field paths are persisted. No authentication is available; Phase 3B adds explicitly enabled local-development management routes, and the API binds only to IPv4 localhost. See [the monitoring API guide](monitoring-api.md).
+No response-body or request-header column exists. Errors use a fixed enum rather than free-text messages. URLs with embedded credentials, query strings, or fragments are rejected. Avoid secrets or personal data in endpoint names, URL paths, or JSON property names: structural field paths are persisted. Phase 6A adds authentication and endpoint ownership; the API remains explicitly enabled local-development-only and bound to IPv4 localhost. See [the monitoring API guide](monitoring-api.md) and [authentication storage design](authentication.md).
 
 ## Baselines
 

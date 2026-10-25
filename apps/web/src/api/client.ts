@@ -1,4 +1,4 @@
-import type { CheckResponse, CheckResult, Endpoint, EndpointRow } from './types';
+import type { CheckResponse, CheckResult, Endpoint, EndpointRow, MonitoringSchedule, ScheduledRun } from './types';
 
 export const SUPPORTED_URLS = [
   'https://jsonplaceholder.typicode.com/todos/1',
@@ -19,10 +19,19 @@ export class ApiError extends Error {
     super(code);
   }
 }
+export interface AuthenticatedSession { user: { id: string; email: string }; csrfToken: string; expiresAt: string }
+let csrfToken: string | null = null;
+export function clearAuthentication() { csrfToken = null; }
 
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'The request could not be completed. Try refreshing the page.';
   const messages: Record<string, string> = {
+    authentication_required: 'Your session has expired. Sign in again.',
+    invalid_credentials: 'Email or password is incorrect.',
+    invalid_credentials_format: 'Enter a valid email and a password with 12–128 characters.',
+    csrf_invalid: 'The security token is out of date. Reload the page before trying again.',
+    authentication_rate_limited: 'Too many authentication attempts. Wait 15 minutes before trying again.',
+    authentication_busy: 'Authentication is busy. Try again in a moment.',
     url_not_allowed: 'This URL is not supported. Choose one of the two public test URLs.',
     endpoint_not_found: 'This endpoint no longer exists. Return to the endpoint list.',
     stale_baseline_acceptance: 'The endpoint changed since this page loaded. Review the refreshed baseline and confirm again.',
@@ -52,13 +61,16 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
     if (options.signal?.aborted) controller.abort();
     const response = await fetch(`/api${path}`, {
       method: options.method ?? 'GET',
-      headers: { 'X-Watchtower-Local': '1', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { 'X-Watchtower-Local': '1', ...(options.body !== undefined ? { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) } : {}) },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      mode: 'same-origin', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
+      mode: 'same-origin', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
     });
     const data: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       const code = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : 'request_failed';
+      if (response.status === 401 && code === 'authentication_required') {
+        clearAuthentication(); window.dispatchEvent(new Event('watchtower:session-expired'));
+      }
       throw new ApiError(response.status, code);
     }
     if (data === null) throw new ApiError(response.status, 'invalid_response');
@@ -73,7 +85,31 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
   }
 }
 
+async function restoreSession(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}) {
+  const session = await request<AuthenticatedSession>(path, options);
+  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  if (!session.user?.id || !session.user.email || !/^[A-Za-z0-9_-]{43}$/.test(session.csrfToken) || !Number.isFinite(Date.parse(session.expiresAt))) throw new ApiError(200, 'invalid_response');
+  csrfToken = session.csrfToken;
+  return session;
+}
+export const authApi = {
+  session: (signal?: AbortSignal) => restoreSession('/auth/session', { signal }),
+  login: (email: string, password: string) => restoreSession('/auth/login', { method: 'POST', body: { email, password } }),
+  register: (email: string, password: string) => request<{ message: string }>('/auth/register', { method: 'POST', body: { email, password } }),
+  logout: async () => { await request('/auth/logout', { method: 'POST', body: {} }); clearAuthentication(); },
+};
+
 export const api = {
+  schedule: async (id: string, signal?: AbortSignal) => {
+    const value = await request<MonitoringSchedule>(`/endpoints/${encodeURIComponent(id)}/schedule`, { signal });
+    const times = [value.nextRunAt, value.lastStartedAt, value.lastFinishedAt, value.updatedAt];
+    if (typeof value.enabled !== 'boolean' || ![5, 15, 30, 60].includes(value.intervalMinutes) || value.endpointId !== id ||
+      !times.every(time => time === null || (typeof time === 'string' && Number.isFinite(Date.parse(time)))) ||
+      !(value.lastErrorCode === null || typeof value.lastErrorCode === 'string')) throw new ApiError(200, 'invalid_response');
+    return value;
+  },
+  configureSchedule: (id: string, settings: Pick<MonitoringSchedule, 'enabled' | 'intervalMinutes'>) => request<MonitoringSchedule>(`/endpoints/${encodeURIComponent(id)}/schedule`, { method: 'PUT', body: settings }),
+  scheduledHistory: (id: string, signal?: AbortSignal) => request<{ runs: ScheduledRun[] }>(`/endpoints/${encodeURIComponent(id)}/scheduled-checks?limit=1`, { signal }),
   list: (signal?: AbortSignal) => request<{ endpoints: Endpoint[] }>('/endpoints?limit=100', { signal }),
   get: (id: string, signal?: AbortSignal) => request<Endpoint>(`/endpoints/${encodeURIComponent(id)}`, { signal }),
   register: (name: string, url: string) => request<Endpoint>('/endpoints', { method: 'POST', body: { name, url } }),

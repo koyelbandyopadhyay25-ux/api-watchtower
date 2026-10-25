@@ -1,6 +1,8 @@
 # API Watchtower
 
-A full-stack API monitoring platform under development. Phases 1–5A provide deterministic schema comparison, PostgreSQL persistence, secure local HTTPS checking, a developer dashboard, and a separately opted-in scheduling worker. Both migrations and real scheduled persistence/stop/restart behavior have been verified locally. Authentication, alerts, and public deployment are not implemented.
+**Phase 6A:** authentication and user isolation are implemented. The approved additive migration was applied to test first, passed all 27 database tests and regressions, then applied to development without changing original monitoring data. All nine legacy endpoints remain unclaimed and invisible to registered users. Read [the authentication design and final verification](docs/authentication.md). `npm run db:auth:plan` performs read-only inspection; do not reinitialize either existing database.
+
+A full-stack API monitoring platform under development. Phases 1–6A provide deterministic schema comparison, PostgreSQL persistence, secure local HTTPS checking, a developer dashboard with persisted monitoring controls, an independent worker, and session-based authentication with user isolation. Alerts and public deployment are not implemented.
 
 ## Structure
 
@@ -40,6 +42,7 @@ npm install
 if (-not (Test-Path apps/api/.env)) { Copy-Item .env.example apps/api/.env }
 $env:NODE_ENV = 'development'
 $env:ENABLE_LOCAL_MANAGEMENT = 'true'
+$env:AUTH_COOKIE_SECURE = 'false' # localhost HTTP development only
 npm run dev
 ```
 
@@ -82,7 +85,7 @@ Local PostgreSQL at `127.0.0.1:5432` has been verified. Migration `2026102509483
 
 After building, `npm run start -w @watchtower/api` starts the compiled API. `npm run preview -w @watchtower/web` previews the frontend build only; the development proxy does not apply to preview. Production routing and deployment configuration are outside the current scope.
 
-Tests cover health, schema comparison, database safety, baseline handling, HTTPS restrictions, workflow, local REST boundaries, PostgreSQL persistence, and frontend interactions. Seven PostgreSQL integration tests are skipped without `TEST_DATABASE_URL`; they never fall back to `DATABASE_URL`. Client generation runs before API development startup, API tests, typechecking, and builds. Frontend component tests mock API responses; the separately enabled browser workflow uses actual local API/database records and public HTTPS checks.
+Tests cover health, schema comparison, database safety, baseline handling, HTTPS restrictions, authentication/ownership, scheduling, PostgreSQL persistence, and frontend interactions. The 27 PostgreSQL integration tests skip without `TEST_DATABASE_URL` or the approved schema; they never fall back to `DATABASE_URL`. All 27 ran and passed locally. Client generation runs before API development startup, API tests, typechecking, and builds. Component tests mock API responses; three opted-in browser workflows use actual local API/database records and public HTTPS checks. Final Phase 6A verification: 291 automated tests and 3 browser workflows passed, with zero final failures/skips.
 
 ## JSON response-schema comparison (Phase 2)
 
@@ -103,6 +106,7 @@ With the migrated local database configured, start the API in one PowerShell ter
 ```powershell
 $env:NODE_ENV = 'development'
 $env:ENABLE_LOCAL_MANAGEMENT = 'true'
+$env:AUTH_COOKIE_SECURE = 'false' # localhost HTTP development only
 npm run dev:api
 ```
 

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import { authenticatedRequest as request, testAuthentication, testUserId } from './helpers/authenticated-request.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import type { MonitoringService } from '../src/monitoring/monitoring-service.js';
@@ -14,7 +14,7 @@ function fixture(environment: NodeJS.ProcessEnv = { NODE_ENV: 'development', ENA
     configureSchedule: vi.fn(async (_id: string, enabled: boolean, intervalMinutes: number) => ({ endpointId: id, enabled, intervalMinutes })),
     scheduledHistory: vi.fn(async () => []),
   };
-  return { app: createApp({ monitoring: service as unknown as MonitoringService, environment }), service };
+  return { app: createApp({ monitoring: service as unknown as MonitoringService, authentication: testAuthentication, environment }), service };
 }
 
 describe('local development management API', () => {
@@ -43,9 +43,9 @@ describe('local development management API', () => {
   it('lists endpoints and history with bounded limits', async () => {
     const { app, service } = fixture();
     expect((await request(app).get('/api/endpoints?limit=10').set('X-Watchtower-Local', '1')).body).toEqual({ endpoints: [] });
-    expect(service.list).toHaveBeenCalledWith(10);
+    expect(service.list).toHaveBeenCalledWith(10, testUserId);
     expect((await request(app).get(`/api/endpoints/${id}/checks`).set('X-Watchtower-Local', '1')).body).toEqual({ checks: [] });
-    expect(service.history).toHaveBeenCalledWith(id, 50);
+    expect(service.history).toHaveBeenCalledWith(id, 50, testUserId);
   });
 
   it.each(['0', '101', 'bad', '1.5'])('rejects invalid history limit %s', async limit => {
@@ -58,14 +58,14 @@ describe('local development management API', () => {
     expect(registered.status).toBe(201);
     expect(registered.body.baselineSchema).toBeNull();
     expect((await request(app).post(`/api/endpoints/${id}/checks`).set('X-Watchtower-Local', '1').send({})).status).toBe(201);
-    expect(service.check).toHaveBeenCalledWith(id);
+    expect(service.check).toHaveBeenCalledWith(id, testUserId);
   });
 
   it('normalizes UUID casing before endpoint concurrency checks', async () => {
     const { app, service } = fixture();
     const uppercase = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA';
     expect((await request(app).post(`/api/endpoints/${uppercase}/checks`).set('X-Watchtower-Local', '1').send({})).status).toBe(201);
-    expect(service.check).toHaveBeenCalledWith(uppercase.toLowerCase());
+    expect(service.check).toHaveBeenCalledWith(uppercase.toLowerCase(), testUserId);
   });
 
   it('requires explicit baseline acceptance and the current ISO timestamp', async () => {
@@ -74,7 +74,7 @@ describe('local development management API', () => {
     expect((await request(app).put(route).set('X-Watchtower-Local', '1').send({ accept: true })).status).toBe(400);
     const updatedAt = '2026-01-01T00:00:00.000Z';
     expect((await request(app).put(route).set('X-Watchtower-Local', '1').send({ accept: true, expectedUpdatedAt: updatedAt })).status).toBe(200);
-    expect(service.acceptBaseline).toHaveBeenCalledWith(id, updatedAt);
+    expect(service.acceptBaseline).toHaveBeenCalledWith(id, updatedAt, testUserId);
   });
 
   it('rejects invalid UUIDs, extra fields, oversized and malformed bodies', async () => {
@@ -101,7 +101,7 @@ describe('local development management API', () => {
     expect(initial.body.enabled).toBe(false);
     const changed = await request(app).put(`/api/endpoints/${id}/schedule`).set('X-Watchtower-Local', '1').send({ enabled: true, intervalMinutes: 5 });
     expect(changed.status).toBe(200);
-    expect(service.configureSchedule).toHaveBeenCalledWith(id, true, 5);
+    expect(service.configureSchedule).toHaveBeenCalledWith(id, true, 5, testUserId);
     expect((await request(app).get(`/api/endpoints/${id}/scheduled-checks`).set('X-Watchtower-Local', '1')).body).toEqual({ runs: [] });
   });
 

@@ -26,11 +26,11 @@ function validateEndpoint(name: string, address: string): string {
 
 export function createMonitoringStore(client: Prisma.TransactionClient) {
   return {
-    async createEndpoint(input: { name: string; url: string }) {
+    async createEndpoint(input: { name: string; url: string; ownerId?: string }) {
       const url = validateEndpoint(input.name, input.url);
       // Baselines always start as SQL NULL. Checks never update this column.
       return databaseOperation(() => client.endpoint.create({
-        data: { name: input.name.trim(), url, baselineSchema: Prisma.DbNull },
+        data: { name: input.name.trim(), url, baselineSchema: Prisma.DbNull, ...(input.ownerId ? { ownerId: input.ownerId } : {}) },
       }));
     },
 
@@ -38,10 +38,10 @@ export function createMonitoringStore(client: Prisma.TransactionClient) {
       return databaseOperation(() => client.endpoint.findUnique({ where: { id } }));
     },
 
-    async listEndpoints(limit = 50) {
+    async listEndpoints(limit = 50, ownerId?: string) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid endpoint limit.');
       return databaseOperation(() => client.endpoint.findMany({
-        take: limit, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit, where: ownerId === undefined ? {} : { ownerId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }));
     },
 
@@ -115,7 +115,7 @@ export function createMonitoringStore(client: Prisma.TransactionClient) {
       return databaseOperation(() => client.checkResult.findMany({
         where: { endpointId }, take: limit,
         orderBy: [{ checkedAt: 'desc' }, { id: 'desc' }],
-        include: { schemaChanges: { orderBy: { path: 'asc' } } },
+        include: { schemaChanges: { orderBy: { path: 'asc' } }, scheduledCheck: { select: { scheduledFor: true } } },
       }));
     },
 
