@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test": "prisma generate && vitest run",
+    "test:db": "prisma generate && vitest run tests/database.integration.test.ts",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "tsx scripts/initialize-database.ts development",
+    "db:prepare-test": "tsx scripts/initialize-database.ts test",
+    "db:verify": "tsx src/database/verify-database.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "~7.10.1",

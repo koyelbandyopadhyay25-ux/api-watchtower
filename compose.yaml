@@ -1,0 +1,38 @@
+# Optional local development infrastructure. Requires Docker Desktop + Compose.
+# Supply a locally chosen password in apps/api/.env, never in this file.
+name: api-watchtower-dev
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: watchtower
+      POSTGRES_DB: watchtower_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in apps/api/.env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchtower -d watchtower_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  postgres-test:
+    image: postgres:17
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: watchtower
+      POSTGRES_DB: watchtower_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in apps/api/.env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U watchtower -d watchtower_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  postgres_dev:
+  postgres_test:

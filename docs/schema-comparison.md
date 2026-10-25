@@ -65,4 +65,4 @@ Inputs are never mutated. Inference visits each JSON value once; property/type s
 
 ## Scope after Phase 2
 
-The engine is callable directly and tested independently of Express. There is no comparison route, fetcher, persistence, baseline selection, scheduler, or alert delivery. Database schemas and migrations remain deferred. A separately authorized Phase 3 can define endpoint registration, response fetching and failure handling, baseline storage, and integration with this engine. Its exact scope still needs to be specified.
+The engine is callable directly and tested independently of Express. Phase 3A adds a separate [persistence layer](database.md) for endpoints, explicit baselines, checks, and these structured change records. The initial migration and local database integration tests have been verified. There is still no comparison route, fetcher, automatic baseline selection, scheduler, or alert delivery. Integration of response fetching and this engine remains for a separately specified Phase 3B.
