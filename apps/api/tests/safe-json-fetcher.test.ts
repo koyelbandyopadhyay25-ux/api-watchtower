@@ -5,7 +5,7 @@ import type { IncomingMessage } from 'node:http';
 import type { DetailedPeerCertificate } from 'node:tls';
 import { describe, expect, it, vi } from 'vitest';
 import { createSafeJsonFetcher, FETCH_LIMITS, FetchBusyError } from '../src/monitoring/safe-json-fetcher.js';
-import { isPublicIpv4, validateTarget } from '../src/monitoring/url-policy.js';
+import { ALLOWED_ENDPOINT_URLS, isPublicIpv4, validateTarget } from '../src/monitoring/url-policy.js';
 
 const target = 'https://jsonplaceholder.typicode.com/todos/1';
 const publicIp = '104.18.42.17';
@@ -46,19 +46,33 @@ function fetcher(options: Parameters<typeof transport>[0] = {}) {
 }
 
 describe('URL policy and SSRF restrictions', () => {
-  it('accepts only the exact allowed destinations, including explicit standard port', () => {
-    expect(validateTarget(target).href).toBe(target);
-    expect(validateTarget(target.replace('.com/', '.com:443/')).href).toBe(target);
+  it.each(ALLOWED_ENDPOINT_URLS)('accepts and fetches the exact approved destination %s', async url => {
+    expect(validateTarget(url).href).toBe(url);
+    expect(validateTarget(url.replace('.com/', '.com:443/')).href).toBe(url);
+    const { check, request, resolve } = fetcher();
+    expect(await check(url)).toMatchObject({ ok: true, httpStatus: 200 });
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]![0].path).toBe(new URL(url).pathname);
   });
 
   it.each([
     'not a URL', 'http://jsonplaceholder.typicode.com/todos/1',
     'https://jsonplaceholder.typicode.com:444/todos/1',
+    'https://jsonplaceholder.typicode.com:8443/users/1',
     'https://user:secret@jsonplaceholder.typicode.com/todos/1',
     'https://jsonplaceholder.typicode.com/todos/1?token=secret',
     'https://jsonplaceholder.typicode.com/todos/1#fragment',
     'https://jsonplaceholder.typicode.com.evil.test/todos/1',
     'https://jsonplaceholder.typicode.com/other', 'https://example.com/',
+    'https://jsonplaceholder.typicode.com/users/1/admin',
+    'https://jsonplaceholder.typicode.com/posts/1/comments/',
+    'https://jsonplaceholder.typicode.com/posts/1/comments?postId=1',
+    'https://jsonplaceholder.typicode.com/posts%2f1/comments',
+    'https://jsonplaceholder.typicode.com/%75sers/1',
+    'https://jsonplaceholder.typicode.com/users/2/../1',
+    'https://jsonplaceholder.typicode.com/a/%2e%2e/users/1',
+    'https://JSONPLACEHOLDER.typicode.com/users/1',
+    'https://jsonplaceholder.typicode.com:443/users/1/',
     'https://localhost/', 'https://127.0.0.1/', 'https://2130706433/',
     'https://0177.0.0.1/', 'https://0x7f000001/',
     'https://10.0.0.1/', 'https://169.254.169.254/',

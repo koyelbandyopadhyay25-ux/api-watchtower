@@ -12,7 +12,7 @@
     "worker:once": "prisma generate && tsx src/worker/main.ts --once",
     "typecheck": "prisma generate && tsc --noEmit",
     "test": "prisma generate && vitest run",
-    "test:db": "prisma generate && vitest run tests/database.integration.test.ts tests/scheduling.integration.test.ts tests/authentication.integration.test.ts tests/notifications.integration.test.ts",
+    "test:db": "prisma generate && vitest run tests/database.integration.test.ts tests/scheduling.integration.test.ts tests/authentication.integration.test.ts tests/notifications.integration.test.ts tests/approved-targets.integration.test.ts",
     "test:mailpit": "vitest run tests/mailpit.integration.test.ts",
     "dev:email": "prisma generate && tsx src/notifications/main.ts",
     "start:email": "node dist/notifications/main.js",

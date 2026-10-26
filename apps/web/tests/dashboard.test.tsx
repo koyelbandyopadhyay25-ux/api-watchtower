@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
+import { SUPPORTED_ENDPOINTS } from '../src/api/client';
 import { check, changes, endpoint, endpointId, initialTimestamp, json, mockApi, nextTimestamp } from './fixtures';
 
 function showDetail() {
@@ -65,25 +66,30 @@ describe('endpoint list and registration', () => {
     await user.click(screen.getByRole('button', { name: 'Register endpoint' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Enter an endpoint name');
     await user.type(screen.getByLabelText('Endpoint name'), 'My API');
-    await user.type(screen.getByLabelText('HTTPS URL'), 'https://127.0.0.1/');
     await user.click(screen.getByRole('button', { name: 'Register endpoint' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('This URL is not supported');
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose one of the four exact supported');
     expect(state.calls.filter(call => call.method === 'POST')).toHaveLength(0);
   });
 
-  it('registers a supported preset, closes the dialog, and reloads the endpoint list', async () => {
+  it.each(SUPPORTED_ENDPOINTS)('registers the $label preset and reloads the endpoint list', async approved => {
     const { state } = mockApi({ endpoints: [] });
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole('button', { name: 'Add endpoint' }));
-    await user.type(screen.getByLabelText('Endpoint name'), 'Post response');
-    await user.click(screen.getByRole('button', { name: 'Post' }));
-    expect(screen.getByLabelText('HTTPS URL')).toHaveValue('https://jsonplaceholder.typicode.com/posts/1');
+    await user.type(screen.getByLabelText('Endpoint name'), `${approved.label} response`);
+    const selector = screen.getByRole('combobox', { name: 'Supported API destination' });
+    expect(within(selector).getAllByRole('option')).toHaveLength(5); // Placeholder plus the four approved destinations.
+    expect(Array.from((selector as HTMLSelectElement).options).slice(1).map(option => option.textContent))
+      .toEqual(SUPPORTED_ENDPOINTS.map(item => `${item.label} — ${item.path}`));
+    expect(screen.queryByRole('textbox', { name: 'Supported API destination' })).not.toBeInTheDocument();
+    await user.selectOptions(selector, approved.url);
+    expect(selector).toHaveValue(approved.url);
+    expect(screen.getByText(approved.url)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Register endpoint' }));
-    expect(await screen.findByRole('link', { name: 'Post response' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: `${approved.label} response` })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByText('Never checked')).toBeInTheDocument();
-    expect(state.calls.filter(call => call.method === 'POST')).toEqual([{ path: '/api/endpoints', method: 'POST', body: { name: 'Post response', url: 'https://jsonplaceholder.typicode.com/posts/1' } }]);
+    expect(state.calls.filter(call => call.method === 'POST')).toEqual([{ path: '/api/endpoints', method: 'POST', body: { name: `${approved.label} response`, url: approved.url } }]);
   });
 
   it('supports cancellation and restores keyboard focus to the opener', async () => {

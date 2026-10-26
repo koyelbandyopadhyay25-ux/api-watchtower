@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { api, loadEndpointRows, supportedUrl } from '../src/api/client';
+import { api, loadEndpointRows, supportedUrl, SUPPORTED_ENDPOINTS } from '../src/api/client';
 import { endpoint, endpointId, json } from './fixtures';
 
 describe('local API client', () => {
@@ -17,12 +17,17 @@ describe('local API client', () => {
 
   it.each(['https://127.0.0.1/', 'https://jsonplaceholder.typicode.com/todos/2',
     'https://user:secret@jsonplaceholder.typicode.com/todos/1', 'https://jsonplaceholder.typicode.com/todos/1?token=x',
-    'https://jsonplaceholder.typicode.com:444/todos/1', 'http://jsonplaceholder.typicode.com/todos/1'])('rejects unsupported client input (%s)', url => {
+    'https://jsonplaceholder.typicode.com:444/todos/1', 'http://jsonplaceholder.typicode.com/todos/1',
+    'https://jsonplaceholder.typicode.com/users/1/extra', 'https://jsonplaceholder.typicode.com/posts/1/comments?x=1',
+    'https://jsonplaceholder.typicode.com/posts%2f1/comments', 'https://jsonplaceholder.typicode.com/%75sers/1',
+    'https://jsonplaceholder.typicode.com/users/2/../1', 'https://JSONPLACEHOLDER.typicode.com/users/1',
+    ' https://jsonplaceholder.typicode.com/users/1', 'https://jsonplaceholder.typicode.com/users/1#frag'])('rejects unsupported client input (%s)', url => {
     expect(supportedUrl(url)).toBeNull();
   });
 
-  it('accepts only canonical supported URLs and standard port 443', () => {
-    expect(supportedUrl('https://jsonplaceholder.typicode.com:443/todos/1')).toBe('https://jsonplaceholder.typicode.com/todos/1');
+  it.each(SUPPORTED_ENDPOINTS)('uses the shared frontend/backend catalog for $label', endpoint => {
+    expect(supportedUrl(endpoint.url)).toBe(endpoint.url);
+    expect(supportedUrl(endpoint.url.replace('.com/', '.com:443/'))).toBe(endpoint.url);
   });
 
   it('limits latest-history reads to four in flight', async () => {

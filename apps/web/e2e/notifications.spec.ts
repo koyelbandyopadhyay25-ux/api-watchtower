@@ -50,7 +50,7 @@ test('notification settings, actual timeout/recovery, capture, retry and dispatc
     const name = `Phase 6B notification verification ${new Date().toISOString()}`;
     await page.getByRole('button', { name: 'Add endpoint', exact: true }).click();
     await page.getByLabel('Endpoint name').fill(name);
-    await page.getByRole('button', { name: 'Todo', exact: true }).click();
+    await page.getByLabel('Supported API destination').selectOption('https://jsonplaceholder.typicode.com/todos/1');
     await page.getByRole('button', { name: 'Register endpoint' }).click();
     await page.getByRole('link', { name, exact: true }).click();
     id = page.url().split('/').at(-1)!;

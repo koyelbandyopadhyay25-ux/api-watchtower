@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './components/Authentication';
-import { SUPPORTED_URLS } from './api/client';
+import { SUPPORTED_ENDPOINTS } from './api/client';
 import type { Endpoint } from './api/types';
 import { AddEndpoint } from './components/AddEndpoint';
 import { EndpointDetail } from './components/EndpointDetail';
@@ -25,8 +25,8 @@ function LocalSetup() {
       <p><a className="inline-link" href="/api/health" target="_blank" rel="noreferrer">Open process health in a new tab</a>. Process health does not verify PostgreSQL readiness.</p>
     </div></section>
     <section className="panel"><div className="panel-heading"><h2>Supported public test endpoints</h2></div><div className="panel-content readable">
-      <ul className="url-list">{SUPPORTED_URLS.map(url => <li key={url}><code>{url}</code></li>)}</ul>
-      <p>Only these exact URLs are supported. Checks use HTTPS on port 443, refuse redirects, and enforce destination, time, size, and concurrency limits.</p>
+      <ul className="url-list">{SUPPORTED_ENDPOINTS.map(endpoint => <li key={endpoint.url}><strong>{endpoint.label}</strong> — <code>{endpoint.url}</code></li>)}</ul>
+      <p>Only these four exact URLs are supported. Checks use HTTPS on port 443, refuse redirects, and enforce destination, time, size, and concurrency limits.</p>
       <p>Baseline capture is always manual. Scheduled checks require explicit endpoint opt-in and a separate worker process. Accounts isolate monitoring data; the application still requires localhost and is not approved for public deployment.</p>
       <p>In a separate PowerShell terminal, start the worker explicitly:</p>
       <pre className="command-block">{"$env:NODE_ENV = 'development'\n$env:ENABLE_SCHEDULER_WORKER = 'true'\nnpm run dev:worker"}</pre>

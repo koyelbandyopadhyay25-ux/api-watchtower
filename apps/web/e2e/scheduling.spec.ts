@@ -42,7 +42,7 @@ test('dashboard persists settings and controls a real independent worker', async
     expect(session.ok()).toBe(true); csrfToken = (await session.json()).csrfToken;
     await page.getByRole('button', { name: 'Add endpoint', exact: true }).click();
     await page.getByLabel('Endpoint name').fill(name);
-    await page.getByRole('button', { name: 'Todo', exact: true }).click();
+    await page.getByLabel('Supported API destination').selectOption('https://jsonplaceholder.typicode.com/todos/1');
     await page.getByRole('button', { name: 'Register endpoint' }).click();
     await page.getByRole('link', { name, exact: true }).click();
     id = page.url().split('/').at(-1)!;

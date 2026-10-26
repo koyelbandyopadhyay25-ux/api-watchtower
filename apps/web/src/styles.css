@@ -126,7 +126,8 @@ nav a.nav-active { background: #e2e5da; color: #303a2c; font-weight: 600; }
 .modal-heading h2 { font-size: 16px; }
 .modal-body { padding: 22px; font-size: 13px; }
 .modal-body > label:not(.checkbox-label) { display: block; margin: 18px 0 6px; font-size: 12px; font-weight: 550; }
-.modal-body input:not([type="checkbox"]) { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid #c8d0bd; border-radius: 3px; background: #fff; color: #2e3828; }
+.modal-body input:not([type="checkbox"]), .modal-body select { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid #c8d0bd; border-radius: 3px; background: #fff; color: #2e3828; }
+.endpoint-url-preview { overflow-wrap: anywhere; }
 .modal-body .notice { margin-top: 16px; }
 .presets { display: flex; align-items: center; gap: 13px; font-size: 11px; margin: 9px 0; }
 .form-actions { justify-content: flex-end; border-top: 1px solid #e2e7d8; padding-top: 18px; margin-top: 24px; }

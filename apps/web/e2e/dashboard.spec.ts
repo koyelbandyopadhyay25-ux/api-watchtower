@@ -22,7 +22,7 @@ test('complete dashboard workflow through the real Vite proxy, API, and PostgreS
   const name = `Dashboard verification ${new Date().toISOString()}`;
   await page.getByRole('button', { name: 'Add endpoint', exact: true }).click();
   await page.getByLabel('Endpoint name').fill(name);
-  await page.getByRole('button', { name: 'Todo', exact: true }).click();
+  await page.getByLabel('Supported API destination').selectOption('https://jsonplaceholder.typicode.com/todos/1');
   await page.getByRole('button', { name: 'Register endpoint' }).click();
   await page.getByRole('link', { name, exact: true }).click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();

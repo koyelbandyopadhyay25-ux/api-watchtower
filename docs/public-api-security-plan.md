@@ -1,6 +1,6 @@
 # Public API monitoring security plan — Phase 7A.1
 
-Review date: 2026-10-25. **Architecture review only; implementation and network expansion require explicit Phase 7A.2 approval.** The two exact JSONPlaceholder URLs, all runtime guards, applied migrations and database records are unchanged. A passing existing test is not evidence that the proposed broader policy already exists.
+Review date: 2026-10-25. This document first recorded an architecture review only; implementation details and historical statements are dated by phase. **Current status:** Phase 7A.2B added only the two approved paths, resulting in exactly four supported URLs. The final implementation and verification evidence is in the last section below.
 
 ## Recommendation and approval boundary
 
@@ -269,3 +269,31 @@ No Prisma schema, migration, ownership, endpoint, baseline, history, schedule, i
 The integration tests used the isolated test database. No development database reset, migration, or historical rewrite was run. `git diff --check` reported only Git's LF-to-CRLF normalization notices for edited files, not whitespace errors. The pre-existing unusual untracked filename noted in the project status was left untouched.
 
 Phase 7A.2B requires explicit approval of the two exact candidate paths above before implementation. No other hostname, path, query, arbitrary destination, network proxy, deployment or product phase is approved by this document.
+
+## Phase 7A.2B implementation status (2026-10-26)
+
+The two candidate paths above were explicitly approved and are now part of the catalog. That older proposal section is historical; this section is the current policy. The catalog contains **exactly four URLs**:
+
+- `https://jsonplaceholder.typicode.com/todos/1`
+- `https://jsonplaceholder.typicode.com/posts/1`
+- `https://jsonplaceholder.typicode.com/users/1`
+- `https://jsonplaceholder.typicode.com/posts/1/comments`
+
+`apps/api/src/monitoring/supported-endpoints.ts` is the sole URL and label source. Backend validation and the frontend's read-only selector use its canonicalizer/catalog. It accepts only the exact canonical spelling, plus the exact explicit `:443` spelling retained for existing compatibility. It rejects case/host normalization, dot-segment normalization, encoded path forms, path suffixes, userinfo, queries, fragments, nonstandard ports, whitespace, and backslashes. `ALLOWED_ENDPOINT_URLS` is derived from that catalog; no wildcard, environment extension, arbitrary host, or other path was added.
+
+The API and frontend continue to use the same Phase 7A.2A resolver, A-record filtering, deterministic IPv4 selection, literal-IP socket dial, peer-address/port check, hostname SNI/certificate check, no-proxy direct agent, no redirects, time/body/concurrency limits, authentication, CSRF, and ownership guards. Endpoint registration stores the canonical URL; every manual, baseline, and scheduled fetch revalidates it. New endpoint schedules and notification preferences retain their disabled defaults. No schema or migration change was needed, and no database rows were backfilled or rewritten.
+
+The live persistence verification uses only the two newly approved paths and the guarded local `watchtower_test` database. For each, it performs a real HTTPS check, explicitly captures a baseline from the response, verifies nested object or array-item structure in the persisted baseline, runs a second real check and compares it, then reads persisted checks through a separate client. Test-created rows are removed by endpoint-specific cleanup. No production, private, or unapproved destination is contacted.
+
+The plan's Phase 7A.2A verification counts above are historical. Final Phase 7A.2B test, browser, and database-preservation results follow. Supporting additional providers still requires separate explicit review/approval; this expansion approves no host or path beyond the four listed above.
+
+### Phase 7A.2B verification and preservation
+
+- `npm run test:db` with `WATCHTOWER_LIVE_TARGET_TEST=true`: **41 passed**. This includes both real public destinations and the existing PostgreSQL suites. The two live tests each performed HTTPS checks, explicit baseline capture, repeat comparison, persisted history reads, a real scheduled check, schedule disablement, and endpoint-specific cleanup.
+- `npm test` with the live-target opt-in: API **342 passed, 1 skipped** across 19 files; frontend **70 passed** across 5 files. Combined **412 passed, 1 skipped**. The single skip is the separately opted-in Mailpit unit integration; the real Mailpit workflow passed in Playwright.
+- Focused URL policy/fetcher/connector, management guard, ownership, authentication, and monitoring-service regressions: **187 passed** across 6 files.
+- `npm run typecheck`, `npm run build`, `npm run db:validate`, and `git diff --check`: passed.
+- Live browser suite with the local HTTP cookie exception, local API/Vite, and existing Mailpit binary: **4 passed** (authentication/ownership/CSRF, dashboard, notifications/Mailpit, and scheduling/worker). The Mailpit and worker processes started by the suite exited; the API/Vite processes started for the suite were stopped afterward.
+- Read-only database integrity verification matched every original row hash in the verified Phase 6B backup for both exact local database targets and confirmed all four applied migration checksums. Development: all backed-up original rows unchanged; current 31 endpoints / 74 checks include the four new E2E demonstration endpoints and their actual checks. Test: zero rows remain after integration cleanup. Both databases report **0 enabled schedules and 0 enabled notification preferences**. No migration, reset, drop, truncate, recreation, backfill, or ownership change occurred.
+
+Only the four listed URLs are approved. The new public requests used the standard verified TLS chain and hostname check. The broader limitations in the Phase 7A.2A section remain: this is not an isolated network-egress boundary; IPv6 and arbitrary hosts remain unsupported; provider availability is not guaranteed. Any independent provider requires its own explicit review and approval.

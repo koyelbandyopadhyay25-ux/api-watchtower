@@ -1,24 +1,17 @@
 import { isIPv4 } from 'node:net';
+import { canonicalSupportedUrl, SUPPORTED_ENDPOINTS } from './supported-endpoints.js';
 
 // Exact paths, not arbitrary hosts or caller-configurable destinations.
-export const ALLOWED_ENDPOINT_URLS = [
-  'https://jsonplaceholder.typicode.com/todos/1',
-  'https://jsonplaceholder.typicode.com/posts/1',
-] as const;
+export const ALLOWED_ENDPOINT_URLS = SUPPORTED_ENDPOINTS.map(endpoint => endpoint.url);
 
 export class UrlPolicyError extends Error {
-  constructor() { super('Only the documented public HTTPS test URLs on port 443 are allowed.'); }
+  constructor() { super('Only the four documented public HTTPS test URLs on port 443 are allowed.'); }
 }
 
 export function validateTarget(value: string): URL {
-  let url: URL;
-  try { url = new URL(value); } catch { throw new UrlPolicyError(); }
-  if (value.length > 2048 || value !== value.trim() || /[\\@?#\s]/.test(value) ||
-      url.protocol !== 'https:' || (url.port !== '' && url.port !== '443') ||
-      url.username || url.password || !ALLOWED_ENDPOINT_URLS.some(allowed => allowed === url.href)) {
-    throw new UrlPolicyError();
-  }
-  return url;
+  const approved = canonicalSupportedUrl(value);
+  if (!approved) throw new UrlPolicyError();
+  return new URL(approved);
 }
 
 function ipv4Number(address: string): number {

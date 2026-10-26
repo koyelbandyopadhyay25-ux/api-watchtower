@@ -1,17 +1,10 @@
 import type { CheckResponse, CheckResult, Endpoint, EndpointRow, MonitoringSchedule, ScheduledRun, NotificationSettings, NotificationEvent } from './types';
+import { canonicalSupportedUrl, SUPPORTED_ENDPOINTS } from '../../../api/src/monitoring/supported-endpoints';
 
-export const SUPPORTED_URLS = [
-  'https://jsonplaceholder.typicode.com/todos/1',
-  'https://jsonplaceholder.typicode.com/posts/1',
-] as const;
+export { SUPPORTED_ENDPOINTS };
 
 export function supportedUrl(value: string): string | null {
-  const input = value.trim();
-  try {
-    const url = new URL(input);
-    if (/[\\@?#\s]/.test(input)) return null;
-    return SUPPORTED_URLS.some(allowed => allowed === url.href) ? url.href : null;
-  } catch { return null; }
+  return canonicalSupportedUrl(value);
 }
 
 export class ApiError extends Error {
@@ -33,7 +26,7 @@ export function errorMessage(error: unknown): string {
     authentication_rate_limited: 'Too many authentication attempts. Wait 15 minutes before trying again.',
     authentication_busy: 'Authentication is busy. Try again in a moment.',
     stale_notification_settings: 'Notification settings changed elsewhere. Refresh and review them before saving again.',
-    url_not_allowed: 'This URL is not supported. Choose one of the two public test URLs.',
+    url_not_allowed: 'This URL is not supported. Choose one of the four public test URLs.',
     endpoint_not_found: 'This endpoint no longer exists. Return to the endpoint list.',
     stale_baseline_acceptance: 'The endpoint changed since this page loaded. Review the refreshed baseline and confirm again.',
     database_conflict: 'The endpoint changed during acceptance. Review the refreshed baseline and confirm again.',
