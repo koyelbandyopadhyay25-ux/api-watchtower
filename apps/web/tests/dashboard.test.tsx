@@ -67,7 +67,7 @@ describe('endpoint list and registration', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Enter an endpoint name');
     await user.type(screen.getByLabelText('Endpoint name'), 'My API');
     await user.click(screen.getByRole('button', { name: 'Register endpoint' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Choose one of the four exact supported');
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose one of the exact destinations in the supported provider catalog.');
     expect(state.calls.filter(call => call.method === 'POST')).toHaveLength(0);
   });
 
@@ -78,9 +78,11 @@ describe('endpoint list and registration', () => {
     await user.click(screen.getByRole('button', { name: 'Add endpoint' }));
     await user.type(screen.getByLabelText('Endpoint name'), `${approved.label} response`);
     const selector = screen.getByRole('combobox', { name: 'Supported API destination' });
-    expect(within(selector).getAllByRole('option')).toHaveLength(5); // Placeholder plus the four approved destinations.
+    expect(within(selector).getAllByRole('option')).toHaveLength(SUPPORTED_ENDPOINTS.length + 1); // Placeholder plus exact destinations.
     expect(Array.from((selector as HTMLSelectElement).options).slice(1).map(option => option.textContent))
       .toEqual(SUPPORTED_ENDPOINTS.map(item => `${item.label} — ${item.path}`));
+    expect(within(selector).getAllByRole('group').map(group => group.getAttribute('label')))
+      .toEqual(['JSONPlaceholder', 'GOV.UK', 'DummyJSON']);
     expect(screen.queryByRole('textbox', { name: 'Supported API destination' })).not.toBeInTheDocument();
     await user.selectOptions(selector, approved.url);
     expect(selector).toHaveValue(approved.url);

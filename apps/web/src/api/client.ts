@@ -26,7 +26,7 @@ export function errorMessage(error: unknown): string {
     authentication_rate_limited: 'Too many authentication attempts. Wait 15 minutes before trying again.',
     authentication_busy: 'Authentication is busy. Try again in a moment.',
     stale_notification_settings: 'Notification settings changed elsewhere. Refresh and review them before saving again.',
-    url_not_allowed: 'This URL is not supported. Choose one of the four public test URLs.',
+    url_not_allowed: 'This URL is not supported. Choose an exact destination from the provider list.',
     endpoint_not_found: 'This endpoint no longer exists. Return to the endpoint list.',
     stale_baseline_acceptance: 'The endpoint changed since this page loaded. Review the refreshed baseline and confirm again.',
     database_conflict: 'The endpoint changed during acceptance. Review the refreshed baseline and confirm again.',

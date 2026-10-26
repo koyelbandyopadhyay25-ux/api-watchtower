@@ -21,13 +21,16 @@ describe('local API client', () => {
     'https://jsonplaceholder.typicode.com/users/1/extra', 'https://jsonplaceholder.typicode.com/posts/1/comments?x=1',
     'https://jsonplaceholder.typicode.com/posts%2f1/comments', 'https://jsonplaceholder.typicode.com/%75sers/1',
     'https://jsonplaceholder.typicode.com/users/2/../1', 'https://JSONPLACEHOLDER.typicode.com/users/1',
-    ' https://jsonplaceholder.typicode.com/users/1', 'https://jsonplaceholder.typicode.com/users/1#frag'])('rejects unsupported client input (%s)', url => {
+    ' https://jsonplaceholder.typicode.com/users/1', 'https://jsonplaceholder.typicode.com/users/1#frag',
+    'https://www.gov.uk/api/bank-holidays.json', 'https://www.gov.uk/bank-holidays.json?x=1',
+    'https://nagerholidays.com/api/v4/Holidays/AT/2026', 'https://dummyjson.com/products/categories/extra'])('rejects unsupported client input (%s)', url => {
     expect(supportedUrl(url)).toBeNull();
   });
 
   it.each(SUPPORTED_ENDPOINTS)('uses the shared frontend/backend catalog for $label', endpoint => {
     expect(supportedUrl(endpoint.url)).toBe(endpoint.url);
-    expect(supportedUrl(endpoint.url.replace('.com/', '.com:443/'))).toBe(endpoint.url);
+    const parsed = new URL(endpoint.url);
+    expect(supportedUrl(`${parsed.protocol}//${parsed.hostname}:443${parsed.pathname}`)).toBe(endpoint.url);
   });
 
   it('limits latest-history reads to four in flight', async () => {

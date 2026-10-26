@@ -1,6 +1,6 @@
 # Public API monitoring security plan — Phase 7A.1
 
-Review date: 2026-10-25. This document first recorded an architecture review only; implementation details and historical statements are dated by phase. **Current status:** Phase 7A.2B added only the two approved paths, resulting in exactly four supported URLs. The final implementation and verification evidence is in the last section below.
+Review date: 2026-10-25. This document first recorded an architecture review only; implementation details and historical statements are dated by phase. **Current status:** Phase 7A.3B retained four JSONPlaceholder URLs and added the successfully preflighted GOV.UK and DummyJSON destinations, for six total. Nager.Holidays timed out before connection and is excluded. See the final sections below.
 
 ## Recommendation and approval boundary
 
@@ -268,7 +268,7 @@ No Prisma schema, migration, ownership, endpoint, baseline, history, schedule, i
 
 The integration tests used the isolated test database. No development database reset, migration, or historical rewrite was run. `git diff --check` reported only Git's LF-to-CRLF normalization notices for edited files, not whitespace errors. The pre-existing unusual untracked filename noted in the project status was left untouched.
 
-Phase 7A.2B requires explicit approval of the two exact candidate paths above before implementation. No other hostname, path, query, arbitrary destination, network proxy, deployment or product phase is approved by this document.
+This Phase 7A.2B approval request is historical and was superseded by explicit approvals recorded in later phase sections.
 
 ## Phase 7A.2B implementation status (2026-10-26)
 
@@ -296,4 +296,33 @@ The plan's Phase 7A.2A verification counts above are historical. Final Phase 7A.
 - Live browser suite with the local HTTP cookie exception, local API/Vite, and existing Mailpit binary: **4 passed** (authentication/ownership/CSRF, dashboard, notifications/Mailpit, and scheduling/worker). The Mailpit and worker processes started by the suite exited; the API/Vite processes started for the suite were stopped afterward.
 - Read-only database integrity verification matched every original row hash in the verified Phase 6B backup for both exact local database targets and confirmed all four applied migration checksums. Development: all backed-up original rows unchanged; current 31 endpoints / 74 checks include the four new E2E demonstration endpoints and their actual checks. Test: zero rows remain after integration cleanup. Both databases report **0 enabled schedules and 0 enabled notification preferences**. No migration, reset, drop, truncate, recreation, backfill, or ownership change occurred.
 
-Only the four listed URLs are approved. The new public requests used the standard verified TLS chain and hostname check. The broader limitations in the Phase 7A.2A section remain: this is not an isolated network-egress boundary; IPv6 and arbitrary hosts remain unsupported; provider availability is not guaranteed. Any independent provider requires its own explicit review and approval.
+Only the four listed URLs were approved in Phase 7A.2B. That historical status is superseded by Phase 7A.3B below. The broader limitations in the Phase 7A.2A section remain: this is not an isolated network-egress boundary; IPv6 and arbitrary hosts remain unsupported; provider availability is not guaranteed.
+
+## Phase 7A.3B independent provider expansion (2026-10-26)
+
+The current exact catalog contains six URLs:
+
+- `https://jsonplaceholder.typicode.com/todos/1`
+- `https://jsonplaceholder.typicode.com/posts/1`
+- `https://jsonplaceholder.typicode.com/users/1`
+- `https://jsonplaceholder.typicode.com/posts/1/comments`
+- `https://www.gov.uk/bank-holidays.json`
+- `https://dummyjson.com/products/categories`
+
+The user corrected the research proposal: only `https://www.gov.uk/bank-holidays.json` was approved. The formerly proposed `https://www.gov.uk/api/bank-holidays.json` is not in the catalog and is rejected. Nager.Holidays `https://nagerholidays.com/api/v4/Holidays/AT/2026` resolved only public IPv4 addresses but timed out at the existing eight-second deadline before a connected peer or HTTP response; it was not added, and no retry or alternate URL was attempted.
+
+GOV.UK preflight used the existing public A-record classifier and pinned HTTPS agent, connected to peer `199.232.100.144:443`, verified SNI/certificate identity `www.gov.uk`, and received HTTP 200 JSON (22,207 bytes). DummyJSON connected to `104.21.61.23:443` from two public A answers, verified SNI/certificate identity `dummyjson.com`, and received HTTP 200 JSON (2,512 bytes). Both responses fit the existing 128-KiB bound and completed under eight seconds. These are request-specific preflight results, not an availability promise.
+
+Backend registration/check/baseline/schedule paths and the grouped frontend selector use the same exact catalog. DNS resolution/filtering, pinned peer check, TLS chain/hostname checks, redirect refusal, resource limits, authentication/ownership, CSRF, incident/outbox, and notification protections remain unchanged. New provider integration tests use only `watchtower_test`; no schema or migration change was made.
+
+The Add Endpoint selector groups current entries under JSONPlaceholder, GOV.UK, and DummyJSON. No Nager option is shown because it failed preflight. There is no arbitrary URL input. This catalog does not provide network-layer egress isolation, IPv6 support, or arbitrary host support. No migration, reset, backfill, or existing-data mutation is part of this phase.
+
+### Phase 7A.3B final verification
+
+- `npm run test:db`: **41 passed**.
+- `npm test`: **428 passed, 3 skipped, 0 failed** (API 350 passed/3 skipped; frontend 78 passed).
+- `npm run test:e2e`: **4 passed**; authentication/isolation, manual dashboard, notification/Mailpit, and worker/scheduling workflows completed.
+- `npm run typecheck`, `npm run build`, `npm run db:validate`, and `git diff --check`: passed.
+- Read-only preservation tooling confirmed both database identities as local `watchtower_test` and `watchtower_dev` at `127.0.0.1:5432`, and the same four applied migration checksums. All original development backup row hashes remained unchanged (17 original endpoints and 38 original checks among the recorded tables); test endpoint/check rows were zero after integration cleanup. Both databases ended with zero enabled schedules and notification preferences. No migration/reset/destructive SQL was run in this phase.
+
+The E2E suite left its actual development history records intact. The complete final backup comparison and per-table original/current counts are in `docs/independent-api-provider-plan.md`.

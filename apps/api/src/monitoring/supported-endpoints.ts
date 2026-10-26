@@ -3,14 +3,18 @@
  * The browser imports this data for its presets; backend validation remains authoritative.
  */
 export const SUPPORTED_ENDPOINTS = [
-  { label: 'Todo item', path: '/todos/1', url: 'https://jsonplaceholder.typicode.com/todos/1' },
-  { label: 'Post', path: '/posts/1', url: 'https://jsonplaceholder.typicode.com/posts/1' },
-  { label: 'User profile', path: '/users/1', url: 'https://jsonplaceholder.typicode.com/users/1' },
-  { label: 'Post comments', path: '/posts/1/comments', url: 'https://jsonplaceholder.typicode.com/posts/1/comments' },
+  { provider: 'JSONPlaceholder', label: 'Todo item', path: '/todos/1', url: 'https://jsonplaceholder.typicode.com/todos/1' },
+  { provider: 'JSONPlaceholder', label: 'Post', path: '/posts/1', url: 'https://jsonplaceholder.typicode.com/posts/1' },
+  { provider: 'JSONPlaceholder', label: 'User profile', path: '/users/1', url: 'https://jsonplaceholder.typicode.com/users/1' },
+  { provider: 'JSONPlaceholder', label: 'Post comments', path: '/posts/1/comments', url: 'https://jsonplaceholder.typicode.com/posts/1/comments' },
+  { provider: 'GOV.UK', label: 'Bank holidays', path: '/bank-holidays.json', url: 'https://www.gov.uk/bank-holidays.json' },
+  { provider: 'DummyJSON', label: 'Product categories', path: '/products/categories', url: 'https://dummyjson.com/products/categories' },
 ] as const;
 
-const STANDARD_PORT_FORMS = SUPPORTED_ENDPOINTS.map(({ url }) =>
-  url.replace('https://jsonplaceholder.typicode.com', 'https://jsonplaceholder.typicode.com:443'));
+const STANDARD_PORT_FORMS = SUPPORTED_ENDPOINTS.map(({ url }) => {
+  const parsed = new URL(url);
+  return `${parsed.protocol}//${parsed.hostname}:443${parsed.pathname}`;
+});
 
 /** Accept only canonical catalog strings, retaining the previously supported explicit :443 form. */
 export function canonicalSupportedUrl(value: string): string | null {

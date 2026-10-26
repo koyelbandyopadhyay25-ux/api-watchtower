@@ -101,7 +101,7 @@ npm exec -w @watchtower/api -- tsx src/schema-comparison/comparison-example.ts
 
 ## Manual local monitoring (Phase 3B)
 
-See [the monitoring API guide](docs/monitoring-api.md) for routes, schemas, baseline acceptance, SSRF controls, resource limits, and limitations. The only supported URLs are the four exact JSONPlaceholder targets in the shared backend catalog: `/todos/1`, `/posts/1`, `/users/1`, and `/posts/1/comments`. Arbitrary public URL fetching remains unavailable.
+See [the monitoring API guide](docs/monitoring-api.md) for routes, schemas, baseline acceptance, SSRF controls, resource limits, and limitations. The shared catalog currently contains six exact URLs: four JSONPlaceholder targets, GOV.UK Bank Holidays, and DummyJSON product categories. Nager.Holidays was not added because its 8-second preflight timed out before connection. Arbitrary public URL fetching remains unavailable.
 
 With the migrated local database configured, start the API in one PowerShell terminal:
 

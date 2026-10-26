@@ -53,6 +53,8 @@ describe('URL policy and SSRF restrictions', () => {
     expect(await check(url)).toMatchObject({ ok: true, httpStatus: 200 });
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(request.mock.calls[0]![0].path).toBe(new URL(url).pathname);
+    expect(request.mock.calls[0]![0]).toMatchObject({ servername: new URL(url).hostname,
+      headers: { Host: new URL(url).hostname } });
   });
 
   it.each([
@@ -73,6 +75,10 @@ describe('URL policy and SSRF restrictions', () => {
     'https://jsonplaceholder.typicode.com/a/%2e%2e/users/1',
     'https://JSONPLACEHOLDER.typicode.com/users/1',
     'https://jsonplaceholder.typicode.com:443/users/1/',
+    'https://www.gov.uk/api/bank-holidays.json', 'https://www.gov.uk/bank-holidays.json/extra',
+    'https://www.gov.uk/bank-holidays.json?year=2026', 'https://www.gov.uk:444/bank-holidays.json',
+    'https://nagerholidays.com/api/v4/Holidays/AT/2026',
+    'https://dummyjson.com/products/categories/extra', 'https://dummyjson.com/products/categories?limit=1',
     'https://localhost/', 'https://127.0.0.1/', 'https://2130706433/',
     'https://0177.0.0.1/', 'https://0x7f000001/',
     'https://10.0.0.1/', 'https://169.254.169.254/',
@@ -139,7 +145,7 @@ describe('bounded JSON HTTPS checking', () => {
     expect(Object.keys(request.mock.calls[0]![0].headers!)).toEqual(['Host', 'Accept', 'Accept-Encoding']);
   });
 
-  it.each([301, 302, 307, 308, 404, 500])('records HTTP %i without following redirects or reading a body', async status => {
+  it.each([301, 302, 307, 308, 404, 429, 500])('records HTTP %i without following redirects or reading a body', async status => {
     const { check, request } = fetcher({ status, headers: { location: 'https://127.0.0.1/private' }, body: 'not json' });
     expect(await check(target)).toMatchObject({ ok: false, httpStatus: status, outcome: 'http_error', errorCode: 'http_status' });
     expect(request).toHaveBeenCalledTimes(1);

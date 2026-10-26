@@ -19,7 +19,7 @@ export function AddEndpoint({ onClose, onCreated }: { onClose: () => void; onCre
     }
     const target = supportedUrl(url);
     if (!target) {
-      setError('Choose one of the four exact supported JSONPlaceholder destinations.'); urlRef.current?.focus(); return;
+      setError('Choose one of the exact destinations in the supported provider catalog.'); urlRef.current?.focus(); return;
     }
     setBusy(true); setError(null);
     try { onCreated(await api.register(name.trim(), target)); }
@@ -29,16 +29,20 @@ export function AddEndpoint({ onClose, onCreated }: { onClose: () => void; onCre
 
   return <Modal title="Add endpoint" onClose={onClose} busy={busy}>
     <form onSubmit={submit} noValidate className="modal-body">
-      <p className="muted">Register one of four public test endpoints. Checks run only when you request them.</p>
+      <p className="muted">Register one of the reviewed public JSON endpoints. Checks run only when you request them.</p>
       {error && <Notice tone="error">{error}</Notice>}
       <label htmlFor="endpoint-name">Endpoint name</label>
       <input id="endpoint-name" ref={nameRef} autoFocus maxLength={100} value={name} onChange={event => setName(event.target.value)} disabled={busy} placeholder="e.g. Todo response" required />
       <label htmlFor="endpoint-url">Supported API destination</label>
       <select id="endpoint-url" ref={urlRef} value={url} onChange={event => setUrl(event.target.value)} disabled={busy} aria-describedby="supported-urls" required>
         <option value="">Choose an approved destination</option>
-        {SUPPORTED_ENDPOINTS.map(endpoint => <option key={endpoint.url} value={endpoint.url}>{endpoint.label} — {endpoint.path}</option>)}
+        {Array.from(new Set(SUPPORTED_ENDPOINTS.map(endpoint => endpoint.provider))).map(provider =>
+          <optgroup key={provider} label={provider}>
+            {SUPPORTED_ENDPOINTS.filter(endpoint => endpoint.provider === provider).map(endpoint =>
+              <option key={endpoint.url} value={endpoint.url}>{endpoint.label} — {endpoint.path}</option>)}
+          </optgroup>)}
       </select>
-      <p id="supported-urls" className="small muted">Only these four exact HTTPS destinations on JSONPlaceholder are available. No other domains or paths can be monitored.</p>
+      <p id="supported-urls" className="small muted">Only the exact destinations listed here are available. Arbitrary domains and other paths are not supported.</p>
       {url && <p className="small mono endpoint-url-preview">{url}</p>}
       <p className="small muted">Registration does not make a check or accept a baseline.</p>
       <div className="form-actions"><button type="button" className="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Registering…' : 'Register endpoint'}</button></div>

@@ -36,12 +36,16 @@ Every management request requires `X-Watchtower-Local: 1`, including reads. Requ
 
 ## Destination and resource policy
 
-Only these canonical URLs can be registered or fetched:
+Only these six canonical URLs can be registered or fetched:
 
 - `https://jsonplaceholder.typicode.com/todos/1`
 - `https://jsonplaceholder.typicode.com/posts/1`
 - `https://jsonplaceholder.typicode.com/users/1`
 - `https://jsonplaceholder.typicode.com/posts/1/comments`
+- `https://www.gov.uk/bank-holidays.json`
+- `https://dummyjson.com/products/categories`
+
+The Add Endpoint selector groups the destinations under JSONPlaceholder, GOV.UK, and DummyJSON. Nager.Holidays is not in the catalog: its separately authorized Phase 7A.3B preflight resolved public A records but timed out at the eight-second request deadline before connecting. The earlier proposed GOV.UK `/api/bank-holidays.json` path was incorrect and remains rejected; only `/bank-holidays.json` was authorized and preflighted.
 
 The backend policy and frontend selector import the same catalog. No runtime environment variable or request parameter can extend it. HTTPS on standard port 443 is mandatory. Credentials, query strings, fragments, alternate paths/hosts/ports, IP literals, backslash/whitespace tricks, encoded path forms, and normalization aliases are rejected. For backwards compatibility, the exact catalog strings with an explicit `:443` are accepted and stored in canonical form; other normalization variants are rejected.
 

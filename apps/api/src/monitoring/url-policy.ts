@@ -5,7 +5,7 @@ import { canonicalSupportedUrl, SUPPORTED_ENDPOINTS } from './supported-endpoint
 export const ALLOWED_ENDPOINT_URLS = SUPPORTED_ENDPOINTS.map(endpoint => endpoint.url);
 
 export class UrlPolicyError extends Error {
-  constructor() { super('Only the four documented public HTTPS test URLs on port 443 are allowed.'); }
+  constructor() { super('Only exact documented public HTTPS destinations on port 443 are allowed.'); }
 }
 
 export function validateTarget(value: string): URL {

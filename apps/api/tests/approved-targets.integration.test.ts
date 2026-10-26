@@ -14,6 +14,7 @@ import { notificationCleanup } from './helpers/notification-cleanup.js';
 
 const runLiveChecks = process.env.WATCHTOWER_LIVE_TARGET_TEST === 'true';
 const databaseReady = await authSchemaReady();
+const newlyApprovedTargets = SUPPORTED_ENDPOINTS.filter(target => target.provider !== 'JSONPlaceholder');
 
 describe.skipIf(!runLiveChecks || !databaseReady)('approved public endpoint live persistence', () => {
   let client: ReturnType<typeof createDatabaseClient>;
@@ -46,7 +47,7 @@ describe.skipIf(!runLiveChecks || !databaseReady)('approved public endpoint live
 
   afterAll(async () => { if (client) await client.$disconnect(); });
 
-  it.each(SUPPORTED_ENDPOINTS.slice(2))('checks, accepts a real baseline, compares, and persists $label', async target => {
+  it.each(newlyApprovedTargets)('checks, accepts a real baseline, compares, and persists $provider $label', async target => {
     const email = `${randomUUID()}@example.test`;
     const credentials = { email, password: randomBytes(24).toString('base64url') };
     const auth = createAuthService(createAuthRepository(client));
@@ -70,23 +71,21 @@ describe.skipIf(!runLiveChecks || !databaseReady)('approved public endpoint live
     const baseline = saved?.baselineSchema as unknown as InferredSchema;
     expect(baseline).toBeTruthy();
 
-    if (target.path === '/users/1') {
+    if (target.provider === 'GOV.UK') {
       expect(baseline.types).toEqual(['object']);
-      expect(baseline.properties?.address?.types).toEqual(['object']);
-      expect(baseline.properties?.address?.properties?.geo?.types).toEqual(['object']);
-      expect(baseline.properties?.company?.types).toEqual(['object']);
-    } else {
+      expect(baseline.properties?.['england-and-wales']?.types).toEqual(['object']);
+      expect(baseline.properties?.['england-and-wales']?.properties?.events?.types).toEqual(['array']);
+      expect(baseline.properties?.['england-and-wales']?.properties?.events?.items?.properties?.date?.types).toEqual(['string']);
+    } else if (target.provider === 'DummyJSON') {
       expect(baseline.types).toEqual(['array']);
       expect(baseline.items?.types).toEqual(['object']);
-      for (const property of ['postId', 'id', 'name', 'email', 'body']) {
-        expect(baseline.items?.properties?.[property]?.types)
-          .toEqual(property === 'id' || property === 'postId' ? ['number'] : ['string']);
-      }
+      for (const property of ['slug', 'name', 'url']) expect(baseline.items?.properties?.[property]?.types).toEqual(['string']);
     }
 
     const compared = await service.check(endpoint.id, user!.id);
     expect(compared.comparison).toBe('compared');
     expect(compared.check.httpStatus).toBe(200);
+    expect(Array.isArray(compared.check.schemaChanges)).toBe(true);
     expect(['success', 'schema_changed']).toContain(compared.check.outcome);
 
     const history = await repository.listCheckResults(endpoint.id, 10);
@@ -94,11 +93,13 @@ describe.skipIf(!runLiveChecks || !databaseReady)('approved public endpoint live
     expect(history.every(check => check.httpStatus === 200)).toBe(true);
     expect(history.some(check => check.id === compared.check.id)).toBe(true);
 
-    await service.configureSchedule(endpoint.id, true, 5, user!.id);
-    const scheduled = await service.checkScheduled(endpoint.id);
-    expect(scheduled?.check.httpStatus).toBe(200);
-    expect(await repository.scheduledHistory(endpoint.id, 10)).toHaveLength(1);
-    await service.configureSchedule(endpoint.id, false, 5, user!.id);
+    if (target.provider === 'DummyJSON') {
+      await service.configureSchedule(endpoint.id, true, 5, user!.id);
+      const scheduled = await service.checkScheduled(endpoint.id);
+      expect(scheduled?.check.httpStatus).toBe(200);
+      expect(await repository.scheduledHistory(endpoint.id, 10)).toHaveLength(1);
+      await service.configureSchedule(endpoint.id, false, 5, user!.id);
+    }
     expect((await service.schedule(endpoint.id, user!.id)).enabled).toBe(false);
     const events = await service.notificationHistory(endpoint.id, 10, user!.id);
     expect(events.every(event => event.outbox === null)).toBe(true);
@@ -109,7 +110,8 @@ describe.skipIf(!runLiveChecks || !databaseReady)('approved public endpoint live
       expect((await persisted.getEndpoint(endpoint.id))?.baselineSchema).toEqual(saved?.baselineSchema);
       expect(await persisted.getCheckResult(captured.check.id)).toMatchObject({ endpointId: endpoint.id, httpStatus: 200 });
       expect(await persisted.getCheckResult(compared.check.id)).toMatchObject({ endpointId: endpoint.id, httpStatus: 200 });
-      expect((await persisted.listCheckResults(endpoint.id, 10)).filter(check => check.scheduledCheck !== null)).toHaveLength(1);
+      expect((await persisted.listCheckResults(endpoint.id, 10)).filter(check => check.scheduledCheck !== null))
+        .toHaveLength(target.provider === 'DummyJSON' ? 1 : 0);
     } finally {
       await reader.$disconnect();
     }
